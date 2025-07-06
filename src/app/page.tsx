@@ -110,7 +110,7 @@ function HomeContent() {
             <h3 className="text-lg font-semibold text-yellow-900 mb-3">🔧 현재 문제 상황</h3>
             <div className="text-sm text-yellow-800 space-y-2">
               <p><strong>문제:</strong> Private App인데도 Client Credentials Grant가 작동하지 않음</p>
-              <p><strong>오류:</strong> "Requested client does not have client_credentials grant_type"</p>
+              <p><strong>오류:</strong> &quot;Requested client does not have client_credentials grant_type&quot;</p>
               <p><strong>확인 필요:</strong></p>
               <ul className="list-disc list-inside ml-4 space-y-1">
                 <li>카페24 개발자 센터에서 앱 상태 확인</li>
