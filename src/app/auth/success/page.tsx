@@ -52,7 +52,7 @@ function AuthSuccessContent() {
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h3 className="font-semibold text-green-900 mb-2">설정 완료!</h3>
               <p className="text-sm text-green-800 mb-3">
-                Private App이 성공적으로 설치되고 액세스 토큰이 발급되었습니다. 바로 사용하실 수 있습니다.
+                OAuth 앱이 성공적으로 설치되고 액세스 토큰이 발급되었습니다. 바로 사용하실 수 있습니다.
               </p>
               <div className="bg-white p-3 rounded border text-xs">
                 <div className="mb-2">
@@ -62,7 +62,7 @@ function AuthSuccessContent() {
                   <strong>사용자명:</strong> {userName}
                 </div>
                 <div className="mb-2">
-                  <strong>앱 타입:</strong> Private App
+                  <strong>앱 타입:</strong> OAuth App
                 </div>
                 <div>
                   <strong>상태:</strong> <span className="text-green-600 font-semibold">토큰 발급 완료</span>

@@ -7,25 +7,18 @@ function SimpleTestContent() {
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const testDirectToken = async () => {
+  const testTokenStatus = async () => {
     setLoading(true);
-    setResult('🔄 Private App 토큰 발급 테스트 중...\n');
+    setResult('🔄 OAuth 토큰 상태 확인 중...\n');
     
     try {
-      const response = await fetch('/api/test-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ mall_id: mallId }),
-      });
-
+      const response = await fetch(`/api/token/status?mall_id=${mallId}`);
       const data = await response.json();
       
       if (response.ok) {
-        setResult(prev => prev + '✅ Private App 토큰 발급 성공!\n' + JSON.stringify(data, null, 2));
+        setResult(prev => prev + '✅ 토큰 상태 확인 성공!\n' + JSON.stringify(data, null, 2));
       } else {
-        setResult(prev => prev + '❌ Private App 토큰 발급 실패:\n' + JSON.stringify(data, null, 2));
+        setResult(prev => prev + '❌ 토큰 상태 확인 실패:\n' + JSON.stringify(data, null, 2));
       }
     } catch (error) {
       setResult(prev => prev + '❌ 네트워크 오류: ' + (error as Error).message);
@@ -39,24 +32,17 @@ function SimpleTestContent() {
     setResult('🚀 카페24 API 테스트 시작...\n\n');
     
     try {
-      // 1. 토큰 발급 테스트
-      setResult(prev => prev + '1️⃣ 토큰 발급 중...\n');
-      const tokenResponse = await fetch('/api/test-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ mall_id: mallId }),
-      });
-
+      // 1. 토큰 상태 확인
+      setResult(prev => prev + '1️⃣ 토큰 상태 확인 중...\n');
+      const tokenResponse = await fetch(`/api/token/status?mall_id=${mallId}`);
       const tokenData = await tokenResponse.json();
       
       if (!tokenResponse.ok) {
-        setResult(prev => prev + '❌ 토큰 발급 실패: ' + tokenData.error + '\n');
+        setResult(prev => prev + '❌ 토큰 상태 확인 실패: ' + tokenData.error + '\n');
         return;
       }
       
-      setResult(prev => prev + '✅ 토큰 발급 성공\n\n');
+      setResult(prev => prev + '✅ 토큰 상태 확인 성공\n\n');
 
       // 2. 게시글 조회 테스트
       setResult(prev => prev + '2️⃣ 게시글 조회 중...\n');
@@ -95,11 +81,11 @@ function SimpleTestContent() {
         
         <div className="space-y-2">
           <button
-            onClick={testDirectToken}
+            onClick={testTokenStatus}
             disabled={loading}
             className="w-full bg-orange-500 text-white py-3 px-4 rounded-md hover:bg-orange-600 disabled:bg-gray-400 font-medium"
           >
-            {loading ? '테스트 진행 중...' : '🔧 Private App 토큰만 테스트'}
+            {loading ? '테스트 진행 중...' : '🔧 OAuth 토큰 상태 확인'}
           </button>
           
           <button
@@ -122,20 +108,20 @@ function SimpleTestContent() {
       <div className="mt-6 text-sm text-gray-600 bg-blue-50 p-4 rounded-lg">
         <h4 className="font-semibold mb-2">💡 테스트 내용:</h4>
         <ul className="list-disc list-inside space-y-1">
-          <li>Cafe24 액세스 토큰 자동 생성</li>
+          <li>OAuth 토큰 상태 확인</li>
           <li>토큰 유효기간 확인</li>
-          <li>Firebase 저장 확인</li>
+          <li>Firebase 저장 상태 확인</li>
           <li>게시글 조회 API 호출 테스트</li>
         </ul>
       </div>
 
-      <div className="mt-4 text-sm text-gray-600 bg-red-50 p-4 rounded-lg">
-        <h4 className="font-semibold mb-2">🚨 401 오류 해결 방법:</h4>
+      <div className="mt-4 text-sm text-gray-600 bg-green-50 p-4 rounded-lg">
+        <h4 className="font-semibold mb-2">🚀 OAuth 앱 사용법:</h4>
         <ul className="list-disc list-inside space-y-1">
-          <li>카페24 개발자 센터에서 Client ID/Secret 재확인</li>
-          <li>앱 타입 확인 (OAuth App vs Private App)</li>
-          <li>권한 범위 확인 (mall.read_community, mall.write_community)</li>
-          <li>Redirect URI 정확성 확인</li>
+          <li>먼저 홈페이지에서 &quot;카페24 앱 설치&quot; 버튼으로 OAuth 인증 완료</li>
+          <li>인증 완료 후 이 페이지에서 토큰 상태 확인</li>
+          <li>권한: 게시판 읽기/쓰기 (mall.read_community, mall.write_community)</li>
+          <li>토큰은 자동으로 갱신됩니다</li>
         </ul>
       </div>
     </div>

@@ -104,9 +104,9 @@ export default function ArticlesPage() {
             />
           </div>
         </div>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4">
-          <p className="text-sm text-yellow-800">
-            <strong>Private App:</strong> 별도의 액세스 토큰이 필요하지 않습니다. 쇼핑몰 ID만으로 API를 호출할 수 있습니다.
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
+          <p className="text-sm text-blue-800">
+            <strong>OAuth App:</strong> 사전에 OAuth 인증이 완료되어야 합니다. 홈페이지에서 &quot;카페24 앱 설치&quot;를 먼저 진행해주세요.
           </p>
         </div>
         <button

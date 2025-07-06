@@ -7,23 +7,7 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  useEffect(() => {
-    // 카페24 앱 설치 후 리다이렉트 파라미터 확인
-    const mallId = searchParams.get('mall_id');
-    const userId = searchParams.get('user_id');
-    const hmac = searchParams.get('hmac');
-    
-    if (mallId && userId && hmac) {
-      // 카페24 콜백 처리를 위해 리다이렉트
-      const callbackUrl = new URL('/api/auth/cafe24/callback', window.location.origin);
-      Array.from(searchParams.entries()).forEach(([key, value]) => {
-        callbackUrl.searchParams.set(key, value);
-      });
-      
-      window.location.href = callbackUrl.toString();
-      return;
-    }
-  }, [searchParams, router]);
+  // OAuth 콜백은 직접 /api/auth/cafe24/callback으로 처리됨
 
   const handleCafe24Login = () => {
     // 카페24 OAuth 인증 시작
@@ -44,17 +28,7 @@ function HomeContent() {
     window.location.href = authUrl;
   };
 
-  const handlePrivateAppInstall = () => {
-    // Private App 설치 URL (카페24 개발자 센터에서 확인 필요)
-    const defaultMallId = 'cosmos2772';
-    const clientId = 'yXNidsOEMldlI2x6QwY20A';
-    
-    // Private App 설치 URL 형식 (실제 URL은 카페24 개발자 센터에서 확인)
-    const installUrl = `https://${defaultMallId}.cafe24.com/disp/admin/shop1/app/install?app_id=${clientId}`;
-    
-    console.log('Private App 설치 URL:', installUrl);
-    window.location.href = installUrl;
-  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
@@ -75,13 +49,7 @@ function HomeContent() {
               onClick={handleCafe24Login}
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
             >
-              OAuth 앱 설치
-            </button>
-            <button
-              onClick={handlePrivateAppInstall}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
-            >
-              Private 앱 설치
+              카페24 앱 설치
             </button>
             <a
               href="/dashboard"
@@ -106,17 +74,17 @@ function HomeContent() {
             </a>
           </div>
 
-          <div className="mt-12 p-6 bg-yellow-50 rounded-lg border border-yellow-200">
-            <h3 className="text-lg font-semibold text-yellow-900 mb-3">🔧 현재 문제 상황</h3>
-            <div className="text-sm text-yellow-800 space-y-2">
-              <p><strong>문제:</strong> Private App인데도 Client Credentials Grant가 작동하지 않음</p>
-              <p><strong>오류:</strong> &quot;Requested client does not have client_credentials grant_type&quot;</p>
-              <p><strong>확인 필요:</strong></p>
+          <div className="mt-12 p-6 bg-blue-50 rounded-lg border border-blue-200">
+            <h3 className="text-lg font-semibold text-blue-900 mb-3">🚀 OAuth 앱 설치 안내</h3>
+            <div className="text-sm text-blue-800 space-y-2">
+              <p><strong>설치 방법:</strong> 위의 &quot;카페24 앱 설치&quot; 버튼을 클릭하여 OAuth 인증을 진행하세요</p>
+              <p><strong>필요 권한:</strong> 게시판 읽기/쓰기 (mall.read_community, mall.write_community)</p>
+              <p><strong>지원 기능:</strong></p>
               <ul className="list-disc list-inside ml-4 space-y-1">
-                <li>카페24 개발자 센터에서 앱 상태 확인</li>
-                <li>cosmos2772 쇼핑몰에 앱이 실제로 설치되어 있는지 확인</li>
-                <li>Community 권한이 허용되어 있는지 확인</li>
-                <li>Client ID/Secret이 올바른지 재확인</li>
+                <li>게시판 문의글 자동 수집</li>
+                <li>AI 기반 답변 생성</li>
+                <li>답변 검토 및 등록</li>
+                <li>토큰 자동 갱신</li>
               </ul>
             </div>
           </div>
