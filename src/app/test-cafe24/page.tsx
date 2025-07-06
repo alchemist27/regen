@@ -1,55 +1,77 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState } from 'react';
 
 function SimpleTestContent() {
-  const [mallId, setMallId] = useState('');
-  const [result, setResult] = useState<string>('');
+  const [mallId, setMallId] = useState('cosmos2772');
+  const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const runTest = async () => {
-    if (!mallId.trim()) {
-      setResult('❌ Mall ID를 입력해주세요.');
-      return;
-    }
-
+  const testDirectToken = async () => {
     setLoading(true);
-    setResult('🔄 테스트 진행 중...\n');
-
+    setResult('🔄 Private App 토큰 발급 테스트 중...\n');
+    
     try {
-      // 1. 토큰 생성 테스트
-      setResult(prev => prev + '\n1️⃣ 토큰 생성 중...');
+      const response = await fetch('/api/test-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mall_id: mallId }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setResult(prev => prev + '✅ Private App 토큰 발급 성공!\n' + JSON.stringify(data, null, 2));
+      } else {
+        setResult(prev => prev + '❌ Private App 토큰 발급 실패:\n' + JSON.stringify(data, null, 2));
+      }
+    } catch (error) {
+      setResult(prev => prev + '❌ 네트워크 오류: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runTest = async () => {
+    setLoading(true);
+    setResult('🚀 카페24 API 테스트 시작...\n\n');
+    
+    try {
+      // 1. 토큰 발급 테스트
+      setResult(prev => prev + '1️⃣ 토큰 발급 중...\n');
       const tokenResponse = await fetch('/api/test-token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ mall_id: mallId }),
       });
 
       const tokenData = await tokenResponse.json();
       
       if (!tokenResponse.ok) {
-        throw new Error(`토큰 생성 실패: ${tokenData.error}`);
+        setResult(prev => prev + '❌ 토큰 발급 실패: ' + tokenData.error + '\n');
+        return;
       }
+      
+      setResult(prev => prev + '✅ 토큰 발급 성공\n\n');
 
-      setResult(prev => prev + '\n✅ 토큰 생성 성공');
-      setResult(prev => prev + `\n📅 만료일: ${new Date(tokenData.data.expires_at).toLocaleString()}`);
-
-      // 2. 게시글 조회 API 테스트
-      setResult(prev => prev + '\n\n2️⃣ 게시글 조회 API 테스트 중...');
-      const articlesResponse = await fetch(`/api/cafe24/articles?mall_id=${mallId}&board_no=1&limit=5`);
+      // 2. 게시글 조회 테스트
+      setResult(prev => prev + '2️⃣ 게시글 조회 중...\n');
+      const articlesResponse = await fetch(`/api/cafe24/articles?mall_id=${mallId}&limit=5`);
       const articlesData = await articlesResponse.json();
-
-      if (!articlesResponse.ok) {
-        throw new Error(`API 호출 실패: ${articlesData.error}`);
+      
+      if (articlesResponse.ok) {
+        setResult(prev => prev + `✅ 게시글 조회 성공 (${articlesData.data?.total_count || 0}개)\n\n`);
+        setResult(prev => prev + '🎉 모든 테스트 통과!\n');
+      } else {
+        setResult(prev => prev + '❌ 게시글 조회 실패: ' + articlesData.error + '\n');
       }
-
-      setResult(prev => prev + '\n✅ 게시글 조회 API 성공');
-      setResult(prev => prev + `\n📊 조회된 게시글 수: ${articlesData.articles?.length || 0}개`);
-
-      setResult(prev => prev + '\n\n🎉 모든 테스트 완료!');
-
+      
     } catch (error) {
-      setResult(prev => prev + `\n❌ 오류: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+      setResult(prev => prev + '❌ 테스트 중 오류: ' + (error as Error).message + '\n');
     } finally {
       setLoading(false);
     }
@@ -71,13 +93,23 @@ function SimpleTestContent() {
           />
         </div>
         
-        <button
-          onClick={runTest}
-          disabled={loading}
-          className="w-full bg-blue-500 text-white py-3 px-4 rounded-md hover:bg-blue-600 disabled:bg-gray-400 font-medium"
-        >
-          {loading ? '테스트 진행 중...' : '🚀 테스트 시작'}
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={testDirectToken}
+            disabled={loading}
+            className="w-full bg-orange-500 text-white py-3 px-4 rounded-md hover:bg-orange-600 disabled:bg-gray-400 font-medium"
+          >
+            {loading ? '테스트 진행 중...' : '🔧 Private App 토큰만 테스트'}
+          </button>
+          
+          <button
+            onClick={runTest}
+            disabled={loading}
+            className="w-full bg-blue-500 text-white py-3 px-4 rounded-md hover:bg-blue-600 disabled:bg-gray-400 font-medium"
+          >
+            {loading ? '테스트 진행 중...' : '🚀 전체 테스트 시작'}
+          </button>
+        </div>
       </div>
 
       {result && (
@@ -96,14 +128,24 @@ function SimpleTestContent() {
           <li>게시글 조회 API 호출 테스트</li>
         </ul>
       </div>
+
+      <div className="mt-4 text-sm text-gray-600 bg-red-50 p-4 rounded-lg">
+        <h4 className="font-semibold mb-2">🚨 401 오류 해결 방법:</h4>
+        <ul className="list-disc list-inside space-y-1">
+          <li>카페24 개발자 센터에서 Client ID/Secret 재확인</li>
+          <li>앱 타입 확인 (OAuth App vs Private App)</li>
+          <li>권한 범위 확인 (mall.read_community, mall.write_community)</li>
+          <li>Redirect URI 정확성 확인</li>
+        </ul>
+      </div>
     </div>
   );
 }
 
-export default function SimpleTestPage() {
+export default function TestCafe24Page() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+    <div className="min-h-screen bg-gray-100">
       <SimpleTestContent />
-    </Suspense>
+    </div>
   );
 } 

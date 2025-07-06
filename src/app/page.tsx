@@ -44,6 +44,18 @@ function HomeContent() {
     window.location.href = authUrl;
   };
 
+  const handlePrivateAppInstall = () => {
+    // Private App 설치 URL (카페24 개발자 센터에서 확인 필요)
+    const defaultMallId = 'cosmos2772';
+    const clientId = 'yXNidsOEMldlI2x6QwY20A';
+    
+    // Private App 설치 URL 형식 (실제 URL은 카페24 개발자 센터에서 확인)
+    const installUrl = `https://${defaultMallId}.cafe24.com/disp/admin/shop1/app/install?app_id=${clientId}`;
+    
+    console.log('Private App 설치 URL:', installUrl);
+    window.location.href = installUrl;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-16">
@@ -58,12 +70,18 @@ function HomeContent() {
             카페24 게시판의 문의글을 분석하여 적절한 답변을 생성하고, 관리자가 검토 후 등록할 수 있습니다.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
             <button
               onClick={handleCafe24Login}
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
             >
-              카페24 앱 설치
+              OAuth 앱 설치
+            </button>
+            <button
+              onClick={handlePrivateAppInstall}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
+            >
+              Private 앱 설치
             </button>
             <a
               href="/dashboard"
@@ -71,6 +89,9 @@ function HomeContent() {
             >
               대시보드 보기
             </a>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <a
               href="/test-openai"
               className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
@@ -83,6 +104,21 @@ function HomeContent() {
             >
               카페24 API 테스트
             </a>
+          </div>
+
+          <div className="mt-12 p-6 bg-yellow-50 rounded-lg border border-yellow-200">
+            <h3 className="text-lg font-semibold text-yellow-900 mb-3">🔧 현재 문제 상황</h3>
+            <div className="text-sm text-yellow-800 space-y-2">
+              <p><strong>문제:</strong> Private App인데도 Client Credentials Grant가 작동하지 않음</p>
+              <p><strong>오류:</strong> "Requested client does not have client_credentials grant_type"</p>
+              <p><strong>확인 필요:</strong></p>
+              <ul className="list-disc list-inside ml-4 space-y-1">
+                <li>카페24 개발자 센터에서 앱 상태 확인</li>
+                <li>cosmos2772 쇼핑몰에 앱이 실제로 설치되어 있는지 확인</li>
+                <li>Community 권한이 허용되어 있는지 확인</li>
+                <li>Client ID/Secret이 올바른지 재확인</li>
+              </ul>
+            </div>
           </div>
         </div>
         
@@ -119,9 +155,9 @@ function HomeContent() {
   );
 }
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
       <HomeContent />
     </Suspense>
   );

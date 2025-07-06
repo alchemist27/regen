@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     let refreshToken = '';
     let tokenError = '';
     let expiresAt = '';
+    let appType = 'oauth';
     
     try {
       // 환경변수에서 클라이언트 정보 가져오기
@@ -54,20 +55,23 @@ export async function GET(request: NextRequest) {
       }
 
       if (code) {
-        // OAuth 인증 코드로 토큰 교환
+        // OAuth App: Authorization Code Grant
         console.log('OAuth 토큰 교환 시작:', { mallId, code: code.substring(0, 10) + '...' });
+        appType = 'oauth';
+        
+        // Basic Authentication 헤더 생성
+        const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
         
         // Form data 형식으로 요청 본문 구성
         const formData = new URLSearchParams();
         formData.append('grant_type', 'authorization_code');
-        formData.append('client_id', clientId);
-        formData.append('client_secret', clientSecret);
         formData.append('code', code);
         formData.append('redirect_uri', redirectUri);
         
         const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, formData, {
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${credentials}`
           }
         });
 
@@ -86,19 +90,22 @@ export async function GET(request: NextRequest) {
           expires_at: expiresAt
         });
 
-      } else {
-        // Private App 방식 (기존 코드)
+      } else if (userId && hmac) {
+        // Private App: Client Credentials Grant
         console.log('Private App 토큰 발급 시작:', { mallId });
+        appType = 'private';
+        
+        // Basic Authentication 헤더 생성
+        const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
         
         // Form data 형식으로 요청 본문 구성
         const formData = new URLSearchParams();
         formData.append('grant_type', 'client_credentials');
-        formData.append('client_id', clientId);
-        formData.append('client_secret', clientSecret);
         
         const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, formData, {
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${credentials}`
           }
         });
 
@@ -115,6 +122,8 @@ export async function GET(request: NextRequest) {
           expires_in: expiresIn,
           expires_at: expiresAt
         });
+      } else {
+        throw new Error('OAuth 인증 코드 또는 Private App 설치 정보가 필요합니다.');
       }
 
     } catch (error) {
@@ -122,8 +131,26 @@ export async function GET(request: NextRequest) {
       if (axios.isAxiosError(error)) {
         console.error('응답 데이터:', error.response?.data);
         console.error('응답 상태:', error.response?.status);
+        
+        // 구체적인 오류 메시지 생성
+        if (error.response?.status === 401) {
+          if (error.response.data?.error === 'invalid_client') {
+            tokenError = '클라이언트 인증 실패: Client ID 또는 Secret이 올바르지 않습니다.';
+          } else {
+            tokenError = '인증 실패: 앱 설정을 확인해주세요.';
+          }
+        } else if (error.response?.status === 400) {
+          if (error.response.data?.error === 'invalid_grant') {
+            tokenError = '잘못된 Grant Type: 앱 타입과 요청 방식이 일치하지 않습니다.';
+          } else {
+            tokenError = '잘못된 요청: ' + (error.response.data?.error_description || '알 수 없는 오류');
+          }
+        } else {
+          tokenError = `카페24 API 오류 (${error.response?.status}): ${error.response?.statusText}`;
+        }
+      } else {
+        tokenError = error instanceof Error ? error.message : '토큰 발급 중 오류가 발생했습니다.';
       }
-      tokenError = error instanceof Error ? error.message : '토큰 발급 중 오류가 발생했습니다.';
     }
 
     // 쇼핑몰 정보 저장
@@ -140,7 +167,7 @@ export async function GET(request: NextRequest) {
       token_error: tokenError,
       installed_at: new Date(),
       status: accessToken ? 'ready' : 'error',
-      app_type: code ? 'oauth' : 'private',
+      app_type: appType,
       auth_code: code || ''
     };
 
@@ -155,7 +182,7 @@ export async function GET(request: NextRequest) {
     redirectUrl.searchParams.set('mall_id', mallId);
     redirectUrl.searchParams.set('user_name', userName || '');
     redirectUrl.searchParams.set('ready', accessToken ? 'true' : 'false');
-    redirectUrl.searchParams.set('app_type', code ? 'oauth' : 'private');
+    redirectUrl.searchParams.set('app_type', appType);
     if (tokenError) {
       redirectUrl.searchParams.set('error', tokenError);
     }
@@ -184,15 +211,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 카페24 토큰 발급 API 호출
+    // Private App 방식 토큰 발급
+    const credentials = Buffer.from(`${client_id}:${client_secret}`).toString('base64');
+    
     const formData = new URLSearchParams();
     formData.append('grant_type', 'client_credentials');
-    formData.append('client_id', client_id);
-    formData.append('client_secret', client_secret);
     
     const tokenResponse = await axios.post(`https://${mall_id}.cafe24api.com/api/v2/oauth/token`, formData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${credentials}`
       }
     });
 
@@ -212,7 +240,7 @@ export async function POST(request: NextRequest) {
         expires_at: expiresAt,
         token_issued_at: new Date(),
         client_id: client_id,
-        // client_secret은 보안상 저장하지 않음
+        app_type: 'private'
       }, { merge: true });
     }
 
@@ -228,11 +256,21 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: unknown) {
-    console.error('토큰 발급 오류:', error);
+    console.error('카페24 Private App POST 오류:', error);
+    
+    let errorMessage = '토큰 발급 중 오류가 발생했습니다.';
+    
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 401) {
+        errorMessage = '클라이언트 인증 실패: Client ID 또는 Secret이 올바르지 않습니다.';
+      } else if (error.response?.status === 400) {
+        errorMessage = '잘못된 Grant Type: 이 앱은 Private App이 아닙니다.';
+      }
+    }
     
     return NextResponse.json(
       { 
-        error: '토큰 발급 중 오류가 발생했습니다.',
+        error: errorMessage,
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
