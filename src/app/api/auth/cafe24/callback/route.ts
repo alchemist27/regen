@@ -104,6 +104,23 @@ export async function GET(request: NextRequest) {
           has_refresh_token: !!refreshToken
         });
 
+      } else if (userId && hmac) {
+        // Private App 설치 파라미터를 받았지만 OAuth 앱으로 처리
+        console.log('🔄 Private App 설치 파라미터 감지, OAuth 인증 URL로 리다이렉트:', { mallId, userId });
+        
+        // OAuth 인증 URL 생성
+        const oauthUrl = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?` +
+          `response_type=code&` +
+          `client_id=${encodeURIComponent(clientId)}&` +
+          `state=${encodeURIComponent(mallId)}&` +
+          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+          `scope=mall.read_community,mall.write_community`;
+        
+        console.log('OAuth 인증 URL로 리다이렉트:', oauthUrl);
+        
+        // OAuth 인증 페이지로 리다이렉트
+        return NextResponse.redirect(oauthUrl);
+        
       } else {
         // 디버깅을 위한 상세한 오류 메시지
         const receivedParams = Object.fromEntries(searchParams.entries());
