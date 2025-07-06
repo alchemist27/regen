@@ -29,17 +29,18 @@ function HomeContent() {
     // 카페24 OAuth 인증 시작
     const defaultMallId = process.env.NEXT_PUBLIC_DEFAULT_MALL_ID || 'cosmos2772';
     const clientId = process.env.NEXT_PUBLIC_CAFE24_CLIENT_ID || 'yXNidsOEMldlI2x6QwY20A';
-    const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/cafe24/callback`);
-    const scope = encodeURIComponent('mall.read_community,mall.write_community');
+    const redirectUri = `${window.location.origin}/api/auth/cafe24/callback`;
+    const scope = 'mall.read_community,mall.write_community';
     
-    // 카페24 OAuth 인증 페이지로 리다이렉트
+    // 카페24 OAuth 인증 페이지로 리다이렉트 (공식 문서 형식)
     const authUrl = `https://${defaultMallId}.cafe24api.com/api/v2/oauth/authorize?` +
       `response_type=code&` +
       `client_id=${clientId}&` +
-      `redirect_uri=${redirectUri}&` +
-      `scope=${scope}&` +
-      `state=${defaultMallId}`;
+      `state=${defaultMallId}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+      `scope=${encodeURIComponent(scope)}`;
     
+    console.log('OAuth 인증 URL:', authUrl);
     window.location.href = authUrl;
   };
 
