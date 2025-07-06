@@ -32,6 +32,12 @@ export default function Home() {
             >
               OpenAI 테스트
             </a>
+            <a
+              href="/test-cafe24"
+              className="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
+            >
+              카페24 API 테스트
+            </a>
           </div>
         </div>
         
