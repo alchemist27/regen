@@ -3,6 +3,29 @@ import { createCafe24Client } from '@/lib/cafe24Client';
 import { getShopData, checkTokenStatus } from '@/lib/tokenStore';
 
 /**
+ * 안전한 날짜 포맷팅 함수
+ */
+function safeFormatDate(timestamp: number | null | undefined): string | null {
+  try {
+    if (!timestamp || isNaN(timestamp)) {
+      return null;
+    }
+    
+    const date = new Date(timestamp);
+    
+    // 유효하지 않은 날짜인지 확인
+    if (isNaN(date.getTime())) {
+      return null;
+    }
+    
+    return date.toLocaleString('ko-KR');
+  } catch (error) {
+    console.warn('날짜 포맷팅 오류:', error);
+    return null;
+  }
+}
+
+/**
  * 토큰 상태 확인 API
  * GET /api/token/status?mall_id=xxx
  */
@@ -45,8 +68,7 @@ export async function GET(request: NextRequest) {
       token_status: tokenStatus,
       installed_at: shopData.installed_at,
       last_refresh_at: shopData.last_refresh_at,
-      expires_at_readable: tokenStatus.expiresAt ? 
-        new Date(tokenStatus.expiresAt).toLocaleString('ko-KR') : null,
+      expires_at_readable: safeFormatDate(tokenStatus.expiresAt),
       needs_refresh: tokenStatus.needsRefresh || false,
       health_check: false // 기본값
     };
@@ -120,8 +142,7 @@ export async function POST(request: NextRequest) {
           minutes_left: tokenStatus.minutesLeft,
           needs_refresh: tokenStatus.needsRefresh || false,
           expires_at: tokenStatus.expiresAt,
-          expires_at_readable: tokenStatus.expiresAt ? 
-            new Date(tokenStatus.expiresAt).toLocaleString('ko-KR') : null
+          expires_at_readable: safeFormatDate(tokenStatus.expiresAt)
         });
 
       } catch (error) {
@@ -225,8 +246,7 @@ export async function PUT(request: NextRequest) {
           minutes_left: tokenStatus.minutesLeft,
           needs_refresh: tokenStatus.needsRefresh || false,
           expires_at: tokenStatus.expiresAt,
-          expires_at_readable: tokenStatus.expiresAt ? 
-            new Date(tokenStatus.expiresAt).toLocaleString('ko-KR') : null,
+          expires_at_readable: safeFormatDate(tokenStatus.expiresAt),
           status_category: statusCategory,
           installed_at: shopData.installed_at,
           last_refresh_at: shopData.last_refresh_at
@@ -305,8 +325,7 @@ export async function PATCH(request: NextRequest) {
         app_type: shopData.app_type,
         minutes_left: tokenStatus.minutesLeft,
         expires_at: tokenStatus.expiresAt,
-        expires_at_readable: tokenStatus.expiresAt ? 
-          new Date(tokenStatus.expiresAt).toLocaleString('ko-KR') : null,
+        expires_at_readable: safeFormatDate(tokenStatus.expiresAt),
         needs_immediate_refresh: tokenStatus.minutesLeft ? tokenStatus.minutesLeft <= 5 : false
       });
     }

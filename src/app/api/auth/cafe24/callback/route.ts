@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
       refresh_token: refreshToken,
       expires_at: expiresAt,
       token_error: tokenError,
-      installed_at: new Date(),
+      installed_at: new Date().toISOString(),
       status: accessToken ? 'ready' : 'error',
       app_type: 'oauth',
       auth_code: code || ''

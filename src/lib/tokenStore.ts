@@ -262,7 +262,41 @@ export async function checkTokenStatus(mallId: string): Promise<TokenStatus> {
     };
   }
 
-  const expiresAt = new Date(shopData.expires_at).getTime();
+  // 만료 시간 파싱 및 검증
+  let expiresAt: number;
+  try {
+    if (!shopData.expires_at || shopData.expires_at === '') {
+      return {
+        valid: false,
+        expiresAt: 0,
+        minutesLeft: 0,
+        needsRefresh: true,
+        error: '토큰 만료 시간이 설정되지 않았습니다.'
+      };
+    }
+    
+    expiresAt = new Date(shopData.expires_at).getTime();
+    
+    // 유효하지 않은 날짜인지 확인
+    if (isNaN(expiresAt)) {
+      return {
+        valid: false,
+        expiresAt: 0,
+        minutesLeft: 0,
+        needsRefresh: true,
+        error: '토큰 만료 시간이 유효하지 않습니다.'
+      };
+    }
+  } catch (error) {
+    return {
+      valid: false,
+      expiresAt: 0,
+      minutesLeft: 0,
+      needsRefresh: true,
+      error: `토큰 만료 시간 파싱 오류: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
+  }
+
   const now = Date.now();
   const minutesLeft = Math.floor((expiresAt - now) / (1000 * 60));
 
@@ -483,15 +517,29 @@ export async function getTokenStatistics(): Promise<{
  * 토큰 만료 시간 포맷팅
  */
 export function formatExpiryTime(expiresAt: number): string {
-  const date = new Date(expiresAt);
-  return date.toLocaleString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
+  try {
+    if (!expiresAt || isNaN(expiresAt)) {
+      return '유효하지 않은 시간';
+    }
+    
+    const date = new Date(expiresAt);
+    
+    // 유효하지 않은 날짜인지 확인
+    if (isNaN(date.getTime())) {
+      return '유효하지 않은 시간';
+    }
+    
+    return date.toLocaleString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  } catch (error) {
+    return '시간 포맷 오류';
+  }
 }
 
 /**
