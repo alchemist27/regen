@@ -25,6 +25,26 @@ function HomeContent() {
     }
   }, [searchParams, router]);
 
+  const handleCafe24Login = () => {
+    // 카페24 OAuth 인증 시작
+    const mallId = prompt('쇼핑몰 ID를 입력하세요 (예: myshop):');
+    if (!mallId) return;
+
+    const clientId = process.env.NEXT_PUBLIC_CAFE24_CLIENT_ID || 'yXNidsOEMldlI2x6QwY20A';
+    const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/cafe24/callback`);
+    const scope = encodeURIComponent('mall.read_community,mall.write_community');
+    
+    // 카페24 OAuth 인증 페이지로 리다이렉트
+    const authUrl = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?` +
+      `response_type=code&` +
+      `client_id=${clientId}&` +
+      `redirect_uri=${redirectUri}&` +
+      `scope=${scope}&` +
+      `state=${mallId}`;
+    
+    window.location.href = authUrl;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-16">
@@ -40,12 +60,12 @@ function HomeContent() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <a
-              href="/auth/login"
+            <button
+              onClick={handleCafe24Login}
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
             >
-              카페24 로그인
-            </a>
+              카페24 앱 설치
+            </button>
             <a
               href="/dashboard"
               className="bg-white hover:bg-gray-50 text-gray-900 font-semibold py-3 px-8 rounded-lg border-2 border-gray-200 transition-colors duration-200 shadow-lg hover:shadow-xl"
