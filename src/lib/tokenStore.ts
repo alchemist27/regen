@@ -537,7 +537,7 @@ export function formatExpiryTime(expiresAt: number): string {
       minute: '2-digit',
       second: '2-digit'
     });
-  } catch (error) {
+  } catch {
     return '시간 포맷 오류';
   }
 }
