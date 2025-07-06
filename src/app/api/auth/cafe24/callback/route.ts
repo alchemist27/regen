@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Private App의 경우 별도의 토큰 발급 과정이 필요
-    // 여기서는 일단 기본 정보를 저장하고 사용자에게 안내
+    // Private App의 경우 별도의 토큰 발급 과정이 불필요
+    // 바로 쇼핑몰 정보를 저장하고 사용 가능 상태로 설정
     const shopData = {
       mall_id: mallId,
       user_id: userId,
@@ -37,16 +37,18 @@ export async function GET(request: NextRequest) {
       timestamp: timestamp,
       hmac: hmac,
       installed_at: serverTimestamp(),
-      status: 'installed'
+      status: 'ready', // 바로 사용 가능
+      app_type: 'private' // Private App 표시
     };
 
     // Firestore에 쇼핑몰 정보 저장
     await setDoc(doc(db, 'shops', mallId), shopData);
 
-    // 성공 페이지로 리다이렉트
+    // 성공 페이지로 리다이렉트 (토큰 발급 단계 생략)
     const redirectUrl = new URL('/auth/success', request.url);
     redirectUrl.searchParams.set('mall_id', mallId);
     redirectUrl.searchParams.set('user_name', userName || '');
+    redirectUrl.searchParams.set('ready', 'true'); // 바로 사용 가능 표시
     
     return NextResponse.redirect(redirectUrl);
 

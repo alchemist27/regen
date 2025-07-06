@@ -11,13 +11,12 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     mallId = searchParams.get('mall_id') || '';
-    const accessToken = searchParams.get('access_token');
     const boardNo = searchParams.get('board_no') || '1'; // 기본값 1
     const limit = searchParams.get('limit') || '10'; // 기본값 10개
     
-    if (!mallId || !accessToken) {
+    if (!mallId) {
       statusCode = 400;
-      errorMessage = 'mall_id와 access_token이 필요합니다.';
+      errorMessage = 'mall_id가 필요합니다.';
       return NextResponse.json(
         { error: errorMessage },
         { status: statusCode }
@@ -36,7 +35,6 @@ export async function GET(request: NextRequest) {
 
     const response = await axios.get(apiUrl, {
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         'X-Cafe24-Api-Version': '2024-06-01'
       },

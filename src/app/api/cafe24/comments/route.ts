@@ -12,7 +12,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { 
       mall_id, 
-      access_token, 
       board_no, 
       article_no, 
       content, 
@@ -21,13 +20,13 @@ export async function POST(request: NextRequest) {
 
     mallId = mall_id || '';
 
-    if (!mall_id || !access_token || !board_no || !article_no || !content) {
+    if (!mall_id || !board_no || !article_no || !content) {
       statusCode = 400;
       errorMessage = '필수 파라미터가 누락되었습니다.';
       return NextResponse.json(
         { 
           error: errorMessage,
-          required: ['mall_id', 'access_token', 'board_no', 'article_no', 'content']
+          required: ['mall_id', 'board_no', 'article_no', 'content']
         },
         { status: statusCode }
       );
@@ -46,7 +45,6 @@ export async function POST(request: NextRequest) {
 
     const response = await axios.post(apiUrl, requestData, {
       headers: {
-        'Authorization': `Bearer ${access_token}`,
         'Content-Type': 'application/json',
         'X-Cafe24-Api-Version': '2024-06-01'
       }

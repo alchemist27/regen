@@ -11,8 +11,8 @@ export default function TestCafe24Page() {
   const [loading, setLoading] = useState(false);
 
   const testArticlesAPI = async () => {
-    if (!mallId || !accessToken) {
-      alert('쇼핑몰 ID와 액세스 토큰을 입력해주세요.');
+    if (!mallId) {
+      alert('쇼핑몰 ID를 입력해주세요.');
       return;
     }
 
@@ -23,7 +23,6 @@ export default function TestCafe24Page() {
       const response = await axios.get('/api/cafe24/articles', {
         params: {
           mall_id: mallId,
-          access_token: accessToken,
           board_no: boardNo,
           limit: 5
         }
@@ -38,8 +37,8 @@ export default function TestCafe24Page() {
   };
 
   const testCommentsAPI = async () => {
-    if (!mallId || !accessToken) {
-      alert('쇼핑몰 ID와 액세스 토큰을 입력해주세요.');
+    if (!mallId) {
+      alert('쇼핑몰 ID를 입력해주세요.');
       return;
     }
 
@@ -49,7 +48,6 @@ export default function TestCafe24Page() {
     try {
       const response = await axios.post('/api/cafe24/comments', {
         mall_id: mallId,
-        access_token: accessToken,
         board_no: boardNo,
         article_no: '1', // 테스트용 게시글 번호
         content: '테스트 답변입니다. 이 답변은 GPT가 생성한 것입니다.',
@@ -70,7 +68,7 @@ export default function TestCafe24Page() {
       
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         <h2 className="text-xl font-semibold mb-4">API 설정</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               쇼핑몰 ID
@@ -80,19 +78,7 @@ export default function TestCafe24Page() {
               value={mallId}
               onChange={(e) => setMallId(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="예: myshop"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              액세스 토큰
-            </label>
-            <input
-              type="password"
-              value={accessToken}
-              onChange={(e) => setAccessToken(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="액세스 토큰 입력"
+              placeholder="예: cosmos2772"
             />
           </div>
           <div>
@@ -107,6 +93,11 @@ export default function TestCafe24Page() {
               placeholder="1"
             />
           </div>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4">
+          <p className="text-sm text-yellow-800">
+            <strong>Private App:</strong> 별도의 액세스 토큰이 필요하지 않습니다. 쇼핑몰 ID만으로 API를 호출할 수 있습니다.
+          </p>
         </div>
       </div>
 
