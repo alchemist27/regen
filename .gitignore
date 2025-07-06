@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# documentation (sensitive)
+CAFE24_TOKEN_MANAGEMENT.md

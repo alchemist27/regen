@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { getAdminDb } from '@/lib/firebase';
+import { updateTokenData, saveAccessToken } from '@/lib/tokenStore';
+import { TokenData, ShopData } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -75,17 +77,21 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        accessToken = tokenResponse.data.access_token;
-        refreshToken = tokenResponse.data.refresh_token;
-        const expiresIn = tokenResponse.data.expires_in;
+        const tokenData: TokenData = tokenResponse.data;
+        accessToken = tokenData.access_token;
+        refreshToken = tokenData.refresh_token || '';
+        const expiresIn = tokenData.expires_in;
         
         // 만료 시간 계산
         const expiresAtDate = new Date(Date.now() + (expiresIn * 1000));
         expiresAt = expiresAtDate.toISOString();
         
+        // 새로운 토큰 저장 시스템 사용
+        await updateTokenData(mallId, tokenData);
+        
         console.log('OAuth 토큰 교환 성공:', {
           mall_id: mallId,
-          token_type: tokenResponse.data.token_type,
+          token_type: tokenData.token_type,
           expires_in: expiresIn,
           expires_at: expiresAt
         });
@@ -109,16 +115,20 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        accessToken = tokenResponse.data.access_token;
-        const expiresIn = tokenResponse.data.expires_in;
+        const tokenData: TokenData = tokenResponse.data;
+        accessToken = tokenData.access_token;
+        const expiresIn = tokenData.expires_in;
         
         // 만료 시간 계산
         const expiresAtDate = new Date(Date.now() + (expiresIn * 1000));
         expiresAt = expiresAtDate.toISOString();
         
+        // 새로운 토큰 저장 시스템 사용
+        await updateTokenData(mallId, tokenData);
+        
         console.log('Private App 토큰 발급 성공:', {
           mall_id: mallId,
-          token_type: tokenResponse.data.token_type,
+          token_type: tokenData.token_type,
           expires_in: expiresIn,
           expires_at: expiresAt
         });
