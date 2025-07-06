@@ -1,4 +1,30 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+
 export default function Home() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    // 카페24 앱 설치 후 리다이렉트 파라미터 확인
+    const mallId = searchParams.get('mall_id');
+    const userId = searchParams.get('user_id');
+    const hmac = searchParams.get('hmac');
+    
+    if (mallId && userId && hmac) {
+      // 카페24 콜백 처리를 위해 리다이렉트
+      const callbackUrl = new URL('/api/auth/cafe24/callback', window.location.origin);
+      Array.from(searchParams.entries()).forEach(([key, value]) => {
+        callbackUrl.searchParams.set(key, value);
+      });
+      
+      window.location.href = callbackUrl.toString();
+      return;
+    }
+  }, [searchParams, router]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-16">
