@@ -38,10 +38,9 @@ function validateFirebaseConfig() {
 }
 
 // 환경변수 검증
-let isConfigValid = false;
 try {
-  isConfigValid = validateFirebaseConfig();
-} catch (error) {
+  validateFirebaseConfig();
+} catch {
   // 에러 무시
 }
 
@@ -58,7 +57,7 @@ const firebaseConfig = {
 // Firebase 앱 초기화 (중복 초기화 방지)
 let app;
 let db: Firestore | null = null;
-let auth: any = null;
+let auth: ReturnType<typeof getAuth> | null = null;
 
 try {
   if (getApps().length === 0) {
@@ -73,7 +72,7 @@ try {
   db = getFirestore(app);
   auth = getAuth(app);
   console.log('🔥 Firebase 서비스 초기화 완료');
-} catch (error: any) {
+} catch (error: unknown) {
   console.error('❌ Firebase 초기화 실패:', error);
 }
 
