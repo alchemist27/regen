@@ -42,12 +42,12 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('OpenAI API Error:', error);
     
     return NextResponse.json({
       success: false,
-      error: error.message || 'OpenAI API 호출 중 오류가 발생했습니다.',
+      error: error instanceof Error ? error.message : 'OpenAI API 호출 중 오류가 발생했습니다.',
       timestamp: new Date().toISOString()
     }, { status: 500 });
   }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 export default function TestOpenAIPage() {
   const [message, setMessage] = useState('');
@@ -87,14 +88,16 @@ export default function TestOpenAIPage() {
           <div className="mt-8 pt-6 border-t border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">테스트 예시</h2>
             <div className="space-y-2 text-sm text-gray-600">
-              <p>• "배송은 언제 되나요?"</p>
-              <p>• "반품하고 싶어요"</p>
-              <p>• "상품 사이즈가 맞지 않아요"</p>
+              <p>• &ldquo;배송은 언제 되나요?&rdquo;</p>
+              <p>• &ldquo;반품하고 싶어요&rdquo;</p>
+              <p>• &ldquo;상품 사이즈가 맞지 않아요&rdquo;</p>
             </div>
           </div>
 
           <div className="mt-6">
-            <a href="/" className="text-blue-600 hover:text-blue-500 text-sm font-medium">← 홈으로 돌아가기</a>
+            <Link href="/" className="text-blue-600 hover:text-blue-500 text-sm font-medium">
+              ← 홈으로 돌아가기
+            </Link>
           </div>
         </div>
       </div>
