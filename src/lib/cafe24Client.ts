@@ -79,7 +79,7 @@ export class Cafe24Client {
   }
 
   /**
-   * Access Token 갱신
+   * Access Token 갱신 (OAuth App 전용)
    */
   public async refreshAccessToken(): Promise<void> {
     const shopData = await getShopData(this.mallId);
@@ -88,45 +88,11 @@ export class Cafe24Client {
       throw new Error('쇼핑몰 정보를 찾을 수 없습니다.');
     }
 
-    if (shopData.app_type === 'private') {
-      // Private App: Client Credentials Grant
-      await this.issuePrivateAppToken();
-    } else {
-      // OAuth App: Refresh Token Grant
-      await this.refreshOAuthToken();
-    }
+    // OAuth App: Refresh Token Grant만 지원
+    await this.refreshOAuthToken();
   }
 
-  /**
-   * Private App 토큰 발급
-   */
-  private async issuePrivateAppToken(): Promise<void> {
-    const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
-    
-    const formData = new URLSearchParams();
-    formData.append('grant_type', 'client_credentials');
-    
-    try {
-      const response = await axios.post(`${this.baseUrl}/oauth/token`, formData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${credentials}`
-        },
-        timeout: 30000
-      });
-
-      const tokenData: TokenData = response.data;
-      
-      await updateTokenData(this.mallId, tokenData);
-      
-      // 캐시 무효화
-      this.tokenCache = null;
-      
-      console.log('✅ Private App 토큰 갱신 완료');
-    } catch (error) {
-      this.handleTokenError(error, 'Private App 토큰 발급');
-    }
-  }
+  // Private App 토큰 발급 메서드 제거됨 (OAuth App 전용)
 
   /**
    * OAuth Token 갱신

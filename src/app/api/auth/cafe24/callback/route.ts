@@ -8,22 +8,12 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
-    // OAuth 인증 코드 플로우 파라미터 확인
+    // OAuth 인증 코드 플로우 파라미터
     const code = searchParams.get('code');
     const state = searchParams.get('state'); // mall_id
     const error = searchParams.get('error');
     
-    // 기존 Private App 방식 파라미터들
-    const mallId = searchParams.get('mall_id') || state;
-    const userId = searchParams.get('user_id');
-    const userName = searchParams.get('user_name');
-    const userType = searchParams.get('user_type');
-    const timestamp = searchParams.get('timestamp');
-    const hmac = searchParams.get('hmac');
-    
-    console.log('카페24 콜백 파라미터:', {
-      code, state, error, mallId, userId, userName, userType, timestamp, hmac
-    });
+    console.log('카페24 OAuth 콜백 파라미터:', { code: code?.substring(0, 10) + '...', state, error });
 
     // OAuth 에러 처리
     if (error) {
@@ -33,18 +23,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(errorUrl);
     }
 
-    if (!mallId) {
+    // 필수 파라미터 확인
+    if (!code || !state) {
       return NextResponse.json(
-        { error: 'mall_id 또는 state 파라미터가 필요합니다.' },
+        { error: 'OAuth 인증 코드(code)와 상태값(state)이 필요합니다.' },
         { status: 400 }
       );
     }
 
+    const mallId = state;
     let accessToken = '';
     let refreshToken = '';
     let tokenError = '';
     let expiresAt = '';
-    let appType = 'oauth';
     
     try {
       // 환경변수에서 클라이언트 정보 가져오기
@@ -56,85 +47,44 @@ export async function GET(request: NextRequest) {
         throw new Error('CAFE24_CLIENT_ID와 CAFE24_CLIENT_SECRET 환경변수가 필요합니다.');
       }
 
-      if (code) {
-        // OAuth App: Authorization Code Grant
-        console.log('OAuth 토큰 교환 시작:', { mallId, code: code.substring(0, 10) + '...' });
-        appType = 'oauth';
-        
-        // Basic Authentication 헤더 생성
-        const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-        
-        // Form data 형식으로 요청 본문 구성
-        const formData = new URLSearchParams();
-        formData.append('grant_type', 'authorization_code');
-        formData.append('code', code);
-        formData.append('redirect_uri', redirectUri);
-        
-        const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, formData, {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${credentials}`
-          }
-        });
+      // OAuth App: Authorization Code Grant
+      console.log('🔄 OAuth 토큰 교환 시작:', { mallId, redirectUri });
+      
+      // Basic Authentication 헤더 생성
+      const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      
+      // Form data 형식으로 요청 본문 구성
+      const formData = new URLSearchParams();
+      formData.append('grant_type', 'authorization_code');
+      formData.append('code', code);
+      formData.append('redirect_uri', redirectUri);
+      
+      const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${credentials}`
+        }
+      });
 
-        const tokenData: TokenData = tokenResponse.data;
-        accessToken = tokenData.access_token;
-        refreshToken = tokenData.refresh_token || '';
-        const expiresIn = tokenData.expires_in;
-        
-        // 만료 시간 계산
-        const expiresAtDate = new Date(Date.now() + (expiresIn * 1000));
-        expiresAt = expiresAtDate.toISOString();
-        
-        // 새로운 토큰 저장 시스템 사용
-        await updateTokenData(mallId, tokenData);
-        
-        console.log('OAuth 토큰 교환 성공:', {
-          mall_id: mallId,
-          token_type: tokenData.token_type,
-          expires_in: expiresIn,
-          expires_at: expiresAt
-        });
-
-      } else if (userId && hmac) {
-        // Private App: Client Credentials Grant
-        console.log('Private App 토큰 발급 시작:', { mallId });
-        appType = 'private';
-        
-        // Basic Authentication 헤더 생성
-        const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-        
-        // Form data 형식으로 요청 본문 구성
-        const formData = new URLSearchParams();
-        formData.append('grant_type', 'client_credentials');
-        
-        const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, formData, {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${credentials}`
-          }
-        });
-
-        const tokenData: TokenData = tokenResponse.data;
-        accessToken = tokenData.access_token;
-        const expiresIn = tokenData.expires_in;
-        
-        // 만료 시간 계산
-        const expiresAtDate = new Date(Date.now() + (expiresIn * 1000));
-        expiresAt = expiresAtDate.toISOString();
-        
-        // 새로운 토큰 저장 시스템 사용
-        await updateTokenData(mallId, tokenData);
-        
-        console.log('Private App 토큰 발급 성공:', {
-          mall_id: mallId,
-          token_type: tokenData.token_type,
-          expires_in: expiresIn,
-          expires_at: expiresAt
-        });
-      } else {
-        throw new Error('OAuth 인증 코드 또는 Private App 설치 정보가 필요합니다.');
-      }
+      const tokenData: TokenData = tokenResponse.data;
+      accessToken = tokenData.access_token;
+      refreshToken = tokenData.refresh_token || '';
+      const expiresIn = tokenData.expires_in;
+      
+      // 만료 시간 계산
+      const expiresAtDate = new Date(Date.now() + (expiresIn * 1000));
+      expiresAt = expiresAtDate.toISOString();
+      
+      // 새로운 토큰 저장 시스템 사용
+      await updateTokenData(mallId, tokenData);
+      
+      console.log('✅ OAuth 토큰 교환 성공:', {
+        mall_id: mallId,
+        token_type: tokenData.token_type,
+        expires_in: expiresIn,
+        expires_at: expiresAt,
+        has_refresh_token: !!refreshToken
+      });
 
     } catch (error) {
       console.error('토큰 발급 실패:', error);
@@ -166,33 +116,34 @@ export async function GET(request: NextRequest) {
     // 쇼핑몰 정보 저장
     const shopData = {
       mall_id: mallId,
-      user_id: userId || 'oauth_user',
-      user_name: decodeURIComponent(userName || ''),
-      user_type: userType || 'oauth',
-      timestamp: timestamp || Date.now().toString(),
-      hmac: hmac || '',
+      user_id: 'oauth_user',
+      user_name: 'OAuth 사용자',
+      user_type: 'oauth',
+      timestamp: Date.now().toString(),
+      hmac: '',
       access_token: accessToken,
       refresh_token: refreshToken,
       expires_at: expiresAt,
       token_error: tokenError,
       installed_at: new Date(),
       status: accessToken ? 'ready' : 'error',
-      app_type: appType,
-      auth_code: code || ''
+      app_type: 'oauth',
+      auth_code: code
     };
 
     // Admin Firestore에 쇼핑몰 정보 저장
     const adminDb = getAdminDb();
     if (adminDb) {
       await adminDb.collection('shops').doc(mallId).set(shopData);
+      console.log('✅ 쇼핑몰 정보 저장 완료:', mallId);
     }
 
     // 성공 페이지로 리다이렉트
     const redirectUrl = new URL('/auth/success', request.url);
     redirectUrl.searchParams.set('mall_id', mallId);
-    redirectUrl.searchParams.set('user_name', userName || '');
+    redirectUrl.searchParams.set('user_name', 'OAuth 사용자');
     redirectUrl.searchParams.set('ready', accessToken ? 'true' : 'false');
-    redirectUrl.searchParams.set('app_type', appType);
+    redirectUrl.searchParams.set('app_type', 'oauth');
     if (tokenError) {
       redirectUrl.searchParams.set('error', tokenError);
     }
@@ -212,69 +163,69 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { mall_id, client_id, client_secret } = body;
+    const { code, state, redirect_uri } = body;
 
-    if (!mall_id || !client_id || !client_secret) {
+    if (!code || !state) {
       return NextResponse.json(
-        { error: '필수 파라미터가 누락되었습니다.' },
+        { error: 'OAuth 인증 코드(code)와 상태값(state)이 필요합니다.' },
         { status: 400 }
       );
     }
 
-    // Private App 방식 토큰 발급
-    const credentials = Buffer.from(`${client_id}:${client_secret}`).toString('base64');
+    const mallId = state;
+    const clientId = process.env.CAFE24_CLIENT_ID;
+    const clientSecret = process.env.CAFE24_CLIENT_SECRET;
+    const redirectUri = redirect_uri || `${new URL(request.url).origin}/api/auth/cafe24/callback`;
+
+    if (!clientId || !clientSecret) {
+      return NextResponse.json(
+        { error: 'CAFE24_CLIENT_ID와 CAFE24_CLIENT_SECRET 환경변수가 필요합니다.' },
+        { status: 500 }
+      );
+    }
+
+    // OAuth 토큰 교환
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     
     const formData = new URLSearchParams();
-    formData.append('grant_type', 'client_credentials');
-    
-    const tokenResponse = await axios.post(`https://${mall_id}.cafe24api.com/api/v2/oauth/token`, formData, {
+    formData.append('grant_type', 'authorization_code');
+    formData.append('code', code);
+    formData.append('redirect_uri', redirectUri);
+
+    const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': `Basic ${credentials}`
       }
     });
 
-    const { access_token, refresh_token, expires_in } = tokenResponse.data;
+    const tokenData = tokenResponse.data;
     
-    // 만료 시간 계산
-    const expiresAtDate = new Date(Date.now() + (expires_in * 1000));
-    const expiresAt = expiresAtDate.toISOString();
-
-    // 토큰 정보를 Admin Firestore에 저장
-    const adminDb = getAdminDb();
-    if (adminDb) {
-      await adminDb.collection('shops').doc(mall_id).set({
-        access_token: access_token,
-        refresh_token: refresh_token,
-        expires_in: expires_in,
-        expires_at: expiresAt,
-        token_issued_at: new Date(),
-        client_id: client_id,
-        app_type: 'private'
-      }, { merge: true });
-    }
+    // 새로운 토큰 저장 시스템 사용
+    await updateTokenData(mallId, tokenData);
 
     return NextResponse.json({
       success: true,
-      message: '토큰이 성공적으로 발급되었습니다.',
+      message: 'OAuth 토큰이 성공적으로 발급되었습니다.',
       data: {
-        mall_id: mall_id,
-        access_token: access_token,
-        expires_in: expires_in,
-        expires_at: expiresAt
+        mall_id: mallId,
+        access_token: tokenData.access_token,
+        expires_in: tokenData.expires_in,
+        token_type: tokenData.token_type,
+        has_refresh_token: !!tokenData.refresh_token
       }
     });
 
   } catch (error: unknown) {
-    console.error('카페24 Private App POST 오류:', error);
+    console.error('OAuth 토큰 발급 오류:', error);
     
-    let errorMessage = '토큰 발급 중 오류가 발생했습니다.';
+    let errorMessage = 'OAuth 토큰 발급 중 오류가 발생했습니다.';
     
     if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401) {
+      if (error.response?.status === 400) {
+        errorMessage = '잘못된 OAuth 인증 코드이거나 만료되었습니다.';
+      } else if (error.response?.status === 401) {
         errorMessage = '클라이언트 인증 실패: Client ID 또는 Secret이 올바르지 않습니다.';
-      } else if (error.response?.status === 400) {
-        errorMessage = '잘못된 Grant Type: 이 앱은 Private App이 아닙니다.';
       }
     }
     
