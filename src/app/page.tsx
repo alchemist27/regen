@@ -1,12 +1,8 @@
 'use client';
 
-import { useEffect, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense } from 'react';
 
 function HomeContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-
   // OAuth 콜백은 직접 /api/auth/cafe24/callback으로 처리됨
 
   const handleCafe24Login = () => {
