@@ -130,6 +130,12 @@ export async function GET(request: NextRequest) {
     }
 
     const shopData = shopDoc.data();
+    if (!shopData) {
+      return NextResponse.json(
+        { error: '쇼핑몰 데이터를 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
     
     return NextResponse.json({
       success: true,

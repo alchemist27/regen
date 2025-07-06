@@ -46,6 +46,15 @@ export async function GET(request: NextRequest) {
     }
 
     const shopData = shopDoc.data();
+    if (!shopData) {
+      statusCode = 404;
+      errorMessage = '쇼핑몰 데이터를 찾을 수 없습니다.';
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: statusCode }
+      );
+    }
+
     const accessToken = shopData.access_token;
 
     if (!accessToken) {
