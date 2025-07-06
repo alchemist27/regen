@@ -7,13 +7,7 @@ import { getShopData, checkTokenStatus } from '@/lib/tokenStore';
  */
 function safeFormatDate(timestamp: number | null | undefined): string | null {
   try {
-    // 입력값 검증
-    if (!timestamp || typeof timestamp !== 'number' || isNaN(timestamp)) {
-      return null;
-    }
-    
-    // 유효한 범위 확인 (1970년 이후, 2100년 이전)
-    if (timestamp < 0 || timestamp > 4102444800000) {
+    if (!timestamp || isNaN(timestamp)) {
       return null;
     }
     
@@ -24,14 +18,7 @@ function safeFormatDate(timestamp: number | null | undefined): string | null {
       return null;
     }
     
-    return date.toLocaleString('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
+    return date.toLocaleString('ko-KR');
   } catch (error) {
     console.warn('날짜 포맷팅 오류:', error);
     return null;
