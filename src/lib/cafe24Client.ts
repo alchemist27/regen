@@ -79,7 +79,7 @@ export class Cafe24Client {
   }
 
   /**
-   * Access Token 갱신
+   * Access Token 갱신 (OAuth만 지원)
    */
   public async refreshAccessToken(): Promise<void> {
     const shopData = await getShopData(this.mallId);
@@ -88,44 +88,15 @@ export class Cafe24Client {
       throw new Error('쇼핑몰 정보를 찾을 수 없습니다.');
     }
 
-    // Refresh Token이 있으면 OAuth 갱신, 없으면 Client Credentials
+    // OAuth 토큰 갱신만 지원
     if (shopData.refresh_token) {
       await this.refreshOAuthToken();
     } else {
-      await this.issueClientCredentialsToken();
+      throw new Error('Refresh Token이 없습니다. OAuth 재인증이 필요합니다.');
     }
   }
 
-  /**
-   * Client Credentials 토큰 발급 (Private App 설치된 경우)
-   */
-  private async issueClientCredentialsToken(): Promise<void> {
-    const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
-    
-    const formData = new URLSearchParams();
-    formData.append('grant_type', 'client_credentials');
-    
-    try {
-      const response = await axios.post(`${this.baseUrl}/oauth/token`, formData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${credentials}`
-        },
-        timeout: 30000
-      });
 
-      const tokenData: TokenData = response.data;
-      
-      await updateTokenData(this.mallId, tokenData);
-      
-      // 캐시 무효화
-      this.tokenCache = null;
-      
-      console.log('✅ Client Credentials 토큰 갱신 완료');
-    } catch (error) {
-      this.handleTokenError(error, 'Client Credentials 토큰 발급');
-    }
-  }
 
   /**
    * OAuth Token 갱신

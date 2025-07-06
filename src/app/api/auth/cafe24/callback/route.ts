@@ -28,7 +28,10 @@ export async function GET(request: NextRequest) {
       userId, 
       userName: userName ? decodeURIComponent(userName) : null,
       userType,
-      error 
+      timestamp,
+      hmac,
+      error,
+      allParams: Object.fromEntries(searchParams.entries())
     });
 
     // OAuth 에러 처리
@@ -101,44 +104,13 @@ export async function GET(request: NextRequest) {
           has_refresh_token: !!refreshToken
         });
 
-      } else if (userId && hmac) {
-        // Private App 설치 → OAuth 토큰 발급
-        console.log('🔄 Private App 설치 감지, OAuth 토큰 발급 시작:', { mallId, userId });
-        
-        // Basic Authentication 헤더 생성
-        const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-        
-        // Form data 형식으로 요청 본문 구성
-        const formData = new URLSearchParams();
-        formData.append('grant_type', 'client_credentials');
-        
-        const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, formData, {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${credentials}`
-          }
-        });
-
-        const tokenData: TokenData = tokenResponse.data;
-        accessToken = tokenData.access_token;
-        const expiresIn = tokenData.expires_in;
-        
-        // 만료 시간 계산
-        const expiresAtDate = new Date(Date.now() + (expiresIn * 1000));
-        expiresAt = expiresAtDate.toISOString();
-        
-        // 새로운 토큰 저장 시스템 사용
-        await updateTokenData(mallId, tokenData);
-        
-        console.log('✅ Private App OAuth 토큰 발급 성공:', {
-          mall_id: mallId,
-          token_type: tokenData.token_type,
-          expires_in: expiresIn,
-          expires_at: expiresAt
-        });
-
       } else {
-        throw new Error('OAuth 인증 코드 또는 Private App 설치 정보가 필요합니다.');
+        // 디버깅을 위한 상세한 오류 메시지
+        const receivedParams = Object.fromEntries(searchParams.entries());
+        console.error('OAuth 인증 코드가 없습니다. 받은 파라미터:', receivedParams);
+        
+        throw new Error(`OAuth 인증 코드가 필요합니다. 올바른 OAuth 인증 URL을 통해 접근해주세요. 
+        받은 파라미터: ${JSON.stringify(receivedParams)}`);
       }
 
     } catch (error) {
