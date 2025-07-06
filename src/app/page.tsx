@@ -26,6 +26,12 @@ export default function Home() {
             >
               대시보드 보기
             </a>
+            <a
+              href="/test-openai"
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
+            >
+              OpenAI 테스트
+            </a>
           </div>
         </div>
         
