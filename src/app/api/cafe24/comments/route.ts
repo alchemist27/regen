@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
       'cafe24_comments',
       apiUrl,
       'POST',
-      requestData,
-      responseData,
+      requestData as Record<string, unknown>,
+      responseData as Record<string, unknown>,
       statusCode,
       Date.now() - startTime
     );
@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
         'cafe24_comments',
         `https://${mallId}.cafe24api.com/api/v2/admin/boards/*/articles/*/comments`,
         'POST',
-        {},
-        errorResponse,
+        {} as Record<string, unknown>,
+        errorResponse as Record<string, unknown>,
         statusCode,
         Date.now() - startTime,
         errorMessage

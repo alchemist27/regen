@@ -29,12 +29,11 @@ export default function ArticlesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mallId, setMallId] = useState('');
-  const [accessToken, setAccessToken] = useState('');
   const [boardNo, setBoardNo] = useState('1');
 
   const fetchArticles = async () => {
-    if (!mallId || !accessToken) {
-      setError('쇼핑몰 ID와 액세스 토큰을 입력해주세요.');
+    if (!mallId) {
+      setError('쇼핑몰 ID를 입력해주세요.');
       return;
     }
 
@@ -45,7 +44,6 @@ export default function ArticlesPage() {
       const response = await axios.get<ArticlesResponse>('/api/cafe24/articles', {
         params: {
           mall_id: mallId,
-          access_token: accessToken,
           board_no: boardNo,
           limit: 20
         }
@@ -80,7 +78,7 @@ export default function ArticlesPage() {
       {/* 설정 입력 폼 */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         <h2 className="text-xl font-semibold mb-4">API 설정</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               쇼핑몰 ID
@@ -90,19 +88,7 @@ export default function ArticlesPage() {
               value={mallId}
               onChange={(e) => setMallId(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="예: myshop"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              액세스 토큰
-            </label>
-            <input
-              type="password"
-              value={accessToken}
-              onChange={(e) => setAccessToken(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="액세스 토큰 입력"
+              placeholder="예: cosmos2772"
             />
           </div>
           <div>
@@ -117,6 +103,11 @@ export default function ArticlesPage() {
               placeholder="1"
             />
           </div>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4">
+          <p className="text-sm text-yellow-800">
+            <strong>Private App:</strong> 별도의 액세스 토큰이 필요하지 않습니다. 쇼핑몰 ID만으로 API를 호출할 수 있습니다.
+          </p>
         </div>
         <button
           onClick={fetchArticles}

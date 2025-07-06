@@ -61,8 +61,8 @@ export async function GET(request: NextRequest) {
       'cafe24_articles',
       apiUrl,
       'GET',
-      requestData,
-      responseData,
+      requestData as Record<string, unknown>,
+      responseData as Record<string, unknown>,
       statusCode,
       Date.now() - startTime
     );
@@ -87,8 +87,8 @@ export async function GET(request: NextRequest) {
         'cafe24_articles',
         `https://${mallId}.cafe24api.com/api/v2/admin/boards/*/articles`,
         'GET',
-        {},
-        errorResponse,
+        {} as Record<string, unknown>,
+        errorResponse as Record<string, unknown>,
         statusCode,
         Date.now() - startTime,
         errorMessage
