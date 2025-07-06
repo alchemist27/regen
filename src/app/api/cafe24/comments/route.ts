@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(responseData);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('카페24 댓글 등록 오류:', error);
     
     statusCode = 500;
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     
     const errorResponse = { 
       error: errorMessage,
-      details: error.response?.data || error.message
+      details: error instanceof Error ? error.message : 'Unknown error'
     };
 
     // 오류 로깅

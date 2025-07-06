@@ -5,7 +5,6 @@ import axios from 'axios';
 
 export default function TestCafe24Page() {
   const [mallId, setMallId] = useState('');
-  const [accessToken, setAccessToken] = useState('');
   const [boardNo, setBoardNo] = useState('1');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,8 +28,8 @@ export default function TestCafe24Page() {
       });
 
       setResult(JSON.stringify(response.data, null, 2));
-    } catch (error: any) {
-      setResult(JSON.stringify(error.response?.data || error.message, null, 2));
+    } catch (error: unknown) {
+      setResult(JSON.stringify(error instanceof Error ? error.message : 'Unknown error', null, 2));
     } finally {
       setLoading(false);
     }
@@ -55,8 +54,8 @@ export default function TestCafe24Page() {
       });
 
       setResult(JSON.stringify(response.data, null, 2));
-    } catch (error: any) {
-      setResult(JSON.stringify(error.response?.data || error.message, null, 2));
+    } catch (error: unknown) {
+      setResult(JSON.stringify(error instanceof Error ? error.message : 'Unknown error', null, 2));
     } finally {
       setLoading(false);
     }

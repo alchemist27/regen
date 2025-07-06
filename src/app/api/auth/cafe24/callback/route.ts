@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export async function GET(request: NextRequest) {
   try {
@@ -52,11 +52,11 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.redirect(redirectUrl);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('카페24 OAuth 콜백 오류:', error);
     
     const errorUrl = new URL('/auth/error', request.url);
-    errorUrl.searchParams.set('error', error.message);
+    errorUrl.searchParams.set('error', error instanceof Error ? error.message : 'Unknown error');
     
     return NextResponse.redirect(errorUrl);
   }
@@ -107,13 +107,13 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('토큰 발급 오류:', error);
     
     return NextResponse.json(
       { 
         error: '토큰 발급 중 오류가 발생했습니다.',
-        details: error.response?.data || error.message
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );

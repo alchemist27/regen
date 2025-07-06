@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     // 미답변 게시글만 필터링
     const articles = response.data.articles || [];
-    const unansweredArticles = articles.filter((article: any) => 
+    const unansweredArticles = articles.filter((article: { reply_count?: number }) => 
       !article.reply_count || article.reply_count === 0
     );
 
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(responseData);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('카페24 게시판 조회 오류:', error);
     
     statusCode = 500;
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     
     const errorResponse = { 
       error: errorMessage,
-      details: error.response?.data || error.message
+      details: error instanceof Error ? error.message : 'Unknown error'
     };
 
     // 오류 로깅

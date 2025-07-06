@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.redirect(callbackUrl);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('카페24 앱 설치 처리 오류:', error);
     
     return NextResponse.json(

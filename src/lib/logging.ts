@@ -1,17 +1,17 @@
 import { db } from './firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, FieldValue } from 'firebase/firestore';
 
 export interface ApiLogEntry {
   mall_id: string;
   api_type: 'cafe24_articles' | 'cafe24_comments' | 'openai_gpt';
   endpoint: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  request_data?: any;
-  response_data?: any;
+  request_data?: Record<string, unknown>;
+  response_data?: Record<string, unknown>;
   status_code: number;
   error_message?: string;
   execution_time_ms: number;
-  timestamp: any;
+  timestamp: FieldValue;
   tokens_used?: number; // GPT API용
   cost_estimate?: number; // 비용 추정용
 }
@@ -36,8 +36,8 @@ export async function logCafe24Request(
   apiType: 'cafe24_articles' | 'cafe24_comments',
   endpoint: string,
   method: 'GET' | 'POST',
-  requestData: any,
-  responseData: any,
+  requestData: Record<string, unknown>,
+  responseData: Record<string, unknown>,
   statusCode: number,
   executionTime: number,
   errorMessage?: string
@@ -58,8 +58,8 @@ export async function logCafe24Request(
 export async function logGptRequest(
   mallId: string,
   endpoint: string,
-  requestData: any,
-  responseData: any,
+  requestData: Record<string, unknown>,
+  responseData: Record<string, unknown>,
   statusCode: number,
   executionTime: number,
   tokensUsed: number,

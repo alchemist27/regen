@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 
 interface Article {
@@ -56,8 +56,8 @@ export default function ArticlesPage() {
       } else {
         setError(response.data.error || '게시글을 불러오는데 실패했습니다.');
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || '네트워크 오류가 발생했습니다.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '네트워크 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
