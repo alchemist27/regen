@@ -12,7 +12,6 @@ function HomeContent() {
     const mallId = searchParams.get('mall_id');
     const userId = searchParams.get('user_id');
     const hmac = searchParams.get('hmac');
-    const code = searchParams.get('code');
     
     if (mallId && userId && hmac) {
       // 카페24 콜백 처리를 위해 리다이렉트
@@ -24,42 +23,22 @@ function HomeContent() {
       window.location.href = callbackUrl.toString();
       return;
     }
-    
-    // OAuth 콜백이 아닌 경우 자동으로 OAuth 인증 시작
-    if (!code && !mallId) {
-      const clientId = process.env.NEXT_PUBLIC_CAFE24_CLIENT_ID || 'yXNidsOEMldlI2x6QwY20A';
-      const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/cafe24/callback`);
-      const scope = encodeURIComponent('mall.read_community,mall.write_community');
-      const defaultMallId = process.env.NEXT_PUBLIC_DEFAULT_MALL_ID || 'cosmos2772'; // 기본 쇼핑몰 ID
-      
-      // 카페24 OAuth 인증 페이지로 자동 리다이렉트
-      const authUrl = `https://${defaultMallId}.cafe24api.com/api/v2/oauth/authorize?` +
-        `response_type=code&` +
-        `client_id=${clientId}&` +
-        `redirect_uri=${redirectUri}&` +
-        `scope=${scope}&` +
-        `state=${defaultMallId}`;
-      
-      window.location.href = authUrl;
-    }
   }, [searchParams, router]);
 
   const handleCafe24Login = () => {
-    // 수동 OAuth 인증 시작 (필요시 사용)
-    const mallId = prompt('쇼핑몰 ID를 입력하세요 (예: myshop):');
-    if (!mallId) return;
-
+    // 카페24 OAuth 인증 시작
+    const defaultMallId = process.env.NEXT_PUBLIC_DEFAULT_MALL_ID || 'cosmos2772';
     const clientId = process.env.NEXT_PUBLIC_CAFE24_CLIENT_ID || 'yXNidsOEMldlI2x6QwY20A';
     const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/cafe24/callback`);
     const scope = encodeURIComponent('mall.read_community,mall.write_community');
     
     // 카페24 OAuth 인증 페이지로 리다이렉트
-    const authUrl = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?` +
+    const authUrl = `https://${defaultMallId}.cafe24api.com/api/v2/oauth/authorize?` +
       `response_type=code&` +
       `client_id=${clientId}&` +
       `redirect_uri=${redirectUri}&` +
       `scope=${scope}&` +
-      `state=${mallId}`;
+      `state=${defaultMallId}`;
     
     window.location.href = authUrl;
   };
