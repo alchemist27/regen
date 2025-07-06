@@ -30,7 +30,7 @@ function HomeContent() {
       const clientId = process.env.NEXT_PUBLIC_CAFE24_CLIENT_ID || 'yXNidsOEMldlI2x6QwY20A';
       const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/cafe24/callback`);
       const scope = encodeURIComponent('mall.read_community,mall.write_community');
-      const defaultMallId = process.env.NEXT_PUBLIC_DEFAULT_MALL_ID || 'myshop'; // 기본 쇼핑몰 ID
+      const defaultMallId = process.env.NEXT_PUBLIC_DEFAULT_MALL_ID || 'cosmos2772'; // 기본 쇼핑몰 ID
       
       // 카페24 OAuth 인증 페이지로 자동 리다이렉트
       const authUrl = `https://${defaultMallId}.cafe24api.com/api/v2/oauth/authorize?` +
