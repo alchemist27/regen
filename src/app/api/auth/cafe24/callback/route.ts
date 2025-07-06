@@ -158,7 +158,9 @@ export async function GET(request: NextRequest) {
     redirectUrl.searchParams.set('user_name', 'OAuth 사용자');
     redirectUrl.searchParams.set('ready', accessToken ? 'true' : 'false');
     redirectUrl.searchParams.set('app_type', 'oauth');
-    if (tokenError) {
+    
+    // 오류가 있을 때만 오류 메시지 추가 (토큰 발급 성공 시에는 오류 메시지 제외)
+    if (tokenError && !accessToken) {
       redirectUrl.searchParams.set('error', tokenError);
     }
     

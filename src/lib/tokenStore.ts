@@ -518,7 +518,13 @@ export async function getTokenStatistics(): Promise<{
  */
 export function formatExpiryTime(expiresAt: number): string {
   try {
-    if (!expiresAt || isNaN(expiresAt)) {
+    // 입력값 검증
+    if (!expiresAt || typeof expiresAt !== 'number' || isNaN(expiresAt)) {
+      return '유효하지 않은 시간';
+    }
+    
+    // 유효한 범위 확인 (1970년 이후, 2100년 이전)
+    if (expiresAt < 0 || expiresAt > 4102444800000) {
       return '유효하지 않은 시간';
     }
     
@@ -537,7 +543,8 @@ export function formatExpiryTime(expiresAt: number): string {
       minute: '2-digit',
       second: '2-digit'
     });
-  } catch {
+  } catch (error) {
+    console.warn('formatExpiryTime 오류:', error);
     return '시간 포맷 오류';
   }
 }
