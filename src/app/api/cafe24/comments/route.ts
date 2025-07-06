@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { logCafe24Request } from '@/lib/logging';
-import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { getAdminDb } from '@/lib/firebase';
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -26,9 +25,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Firestore에서 액세스 토큰 조회
-    const shopDoc = await getDoc(doc(db, 'shops', mallId));
-    if (!shopDoc.exists()) {
+    // Admin Firestore에서 액세스 토큰 조회
+    const adminDb = getAdminDb();
+    if (!adminDb) {
+      statusCode = 500;
+      errorMessage = 'Firebase 연결 실패';
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: statusCode }
+      );
+    }
+
+    const shopDoc = await adminDb.collection('shops').doc(mallId).get();
+    if (!shopDoc.exists) {
       statusCode = 404;
       errorMessage = '쇼핑몰 정보를 찾을 수 없습니다. 앱을 먼저 설치해주세요.';
       return NextResponse.json(

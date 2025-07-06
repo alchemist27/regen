@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import { db } from '@/lib/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getAdminDb } from '@/lib/firebase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -135,14 +134,17 @@ export async function GET(request: NextRequest) {
       refresh_token: refreshToken,
       expires_at: expiresAt,
       token_error: tokenError,
-      installed_at: serverTimestamp(),
+      installed_at: new Date(),
       status: accessToken ? 'ready' : 'error',
       app_type: code ? 'oauth' : 'private',
       auth_code: code || ''
     };
 
-    // Firestore에 쇼핑몰 정보 저장
-    await setDoc(doc(db, 'shops', mallId), shopData);
+    // Admin Firestore에 쇼핑몰 정보 저장
+    const adminDb = getAdminDb();
+    if (adminDb) {
+      await adminDb.collection('shops').doc(mallId).set(shopData);
+    }
 
     // 성공 페이지로 리다이렉트
     const redirectUrl = new URL('/auth/success', request.url);
@@ -195,16 +197,19 @@ export async function POST(request: NextRequest) {
     const expiresAtDate = new Date(Date.now() + (expires_in * 1000));
     const expiresAt = expiresAtDate.toISOString();
 
-    // 토큰 정보를 Firestore에 저장
-    await setDoc(doc(db, 'shops', mall_id), {
-      access_token: access_token,
-      refresh_token: refresh_token,
-      expires_in: expires_in,
-      expires_at: expiresAt,
-      token_issued_at: serverTimestamp(),
-      client_id: client_id,
-      // client_secret은 보안상 저장하지 않음
-    }, { merge: true });
+    // 토큰 정보를 Admin Firestore에 저장
+    const adminDb = getAdminDb();
+    if (adminDb) {
+      await adminDb.collection('shops').doc(mall_id).set({
+        access_token: access_token,
+        refresh_token: refresh_token,
+        expires_in: expires_in,
+        expires_at: expiresAt,
+        token_issued_at: new Date(),
+        client_id: client_id,
+        // client_secret은 보안상 저장하지 않음
+      }, { merge: true });
+    }
 
     return NextResponse.json({
       success: true,

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { getAdminDb } from '@/lib/firebase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,20 +43,23 @@ export async function POST(request: NextRequest) {
 
     const { access_token, token_type, expires_in } = tokenResponse.data;
 
-    // Firebase에 토큰 저장
+    // Admin Firebase에 토큰 저장
     const shopData = {
       mall_id: mall_id,
       access_token: access_token,
       token_type: token_type,
       expires_in: expires_in,
-      token_issued_at: serverTimestamp(),
+      token_issued_at: new Date(),
       status: 'ready',
       app_type: 'private',
       client_id: clientId,
-      last_test_at: serverTimestamp()
+      last_test_at: new Date()
     };
 
-    await setDoc(doc(db, 'shops', mall_id), shopData, { merge: true });
+    const adminDb = getAdminDb();
+    if (adminDb) {
+      await adminDb.collection('shops').doc(mall_id).set(shopData, { merge: true });
+    }
 
     return NextResponse.json({
       success: true,
@@ -109,10 +111,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Firebase에서 토큰 정보 조회
-    const shopDoc = await getDoc(doc(db, 'shops', mallId));
+    // Admin Firebase에서 토큰 정보 조회
+    const adminDb = getAdminDb();
+    if (!adminDb) {
+      return NextResponse.json(
+        { error: 'Firebase 연결 실패' },
+        { status: 500 }
+      );
+    }
+
+    const shopDoc = await adminDb.collection('shops').doc(mallId).get();
     
-    if (!shopDoc.exists()) {
+    if (!shopDoc.exists) {
       return NextResponse.json(
         { error: '쇼핑몰 정보를 찾을 수 없습니다.' },
         { status: 404 }

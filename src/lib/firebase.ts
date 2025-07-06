@@ -1,6 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { initializeApp as initializeAdminApp, getApps as getAdminApps, cert } from 'firebase-admin/app';
+import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,13 +13,51 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Firebase 앱 초기화
+// Client-side Firebase 앱 초기화
 const app = initializeApp(firebaseConfig);
 
-// Firestore 데이터베이스 초기화
+// Client-side Firestore 데이터베이스 초기화
 export const db = getFirestore(app);
 
 // Firebase Auth 초기화
 export const auth = getAuth(app);
+
+// Admin SDK 초기화 (서버 사이드에서만 사용)
+let adminDb: any = null;
+
+export function getAdminDb() {
+  if (adminDb) return adminDb;
+  
+  // 서버 환경에서만 Admin SDK 초기화
+  if (typeof window === 'undefined') {
+    try {
+      // Admin 앱이 이미 초기화되어 있는지 확인
+      const adminApps = getAdminApps();
+      let adminApp;
+      
+      if (adminApps.length === 0) {
+        // Admin 앱 초기화
+        adminApp = initializeAdminApp({
+          credential: cert({
+            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+          }),
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        });
+      } else {
+        adminApp = adminApps[0];
+      }
+      
+      adminDb = getAdminFirestore(adminApp);
+      return adminDb;
+    } catch (error) {
+      console.error('Admin SDK 초기화 실패:', error);
+      return null;
+    }
+  }
+  
+  return null;
+}
 
 export default app; 

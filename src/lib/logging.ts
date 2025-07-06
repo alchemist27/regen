@@ -1,5 +1,4 @@
-import { db } from './firebase';
-import { collection, addDoc, serverTimestamp, FieldValue } from 'firebase/firestore';
+import { getAdminDb } from './firebase';
 
 export interface ApiLogEntry {
   mall_id: string;
@@ -11,16 +10,22 @@ export interface ApiLogEntry {
   status_code: number;
   error_message?: string;
   execution_time_ms: number;
-  timestamp: FieldValue;
+  timestamp: Date;
   tokens_used?: number; // GPT API용
   cost_estimate?: number; // 비용 추정용
 }
 
 export async function logApiRequest(logEntry: Omit<ApiLogEntry, 'timestamp'>) {
   try {
-    const docRef = await addDoc(collection(db, 'api_logs'), {
+    const adminDb = getAdminDb();
+    if (!adminDb) {
+      console.error('Admin DB 연결 실패');
+      return null;
+    }
+
+    const docRef = await adminDb.collection('api_logs').add({
       ...logEntry,
-      timestamp: serverTimestamp()
+      timestamp: new Date()
     });
     
     console.log('API 로그 저장 완료:', docRef.id);

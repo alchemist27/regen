@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore';
+import { getAdminDb } from '@/lib/firebase';
 
 export async function GET() {
   try {
-    console.log('Firebase 연결 테스트 시작...');
+    console.log('Firebase Admin 연결 테스트 시작...');
+    
+    const adminDb = getAdminDb();
+    if (!adminDb) {
+      throw new Error('Firebase Admin 초기화 실패');
+    }
     
     // 1. 테스트 문서 작성
-    const testDocRef = doc(db, 'test', 'connection');
-    await setDoc(testDocRef, {
-      message: 'Firebase Firestore 연결 테스트',
-      timestamp: serverTimestamp(),
+    const testDocRef = adminDb.collection('test').doc('connection');
+    await testDocRef.set({
+      message: 'Firebase Admin Firestore 연결 테스트',
+      timestamp: new Date(),
       test_data: {
         success: true,
         version: '1.0.0'
@@ -20,9 +24,9 @@ export async function GET() {
     console.log('테스트 문서 작성 완료');
     
     // 2. 테스트 문서 읽기
-    const testDoc = await getDoc(testDocRef);
+    const testDoc = await testDocRef.get();
     
-    if (!testDoc.exists()) {
+    if (!testDoc.exists) {
       throw new Error('테스트 문서를 찾을 수 없습니다.');
     }
     
@@ -35,7 +39,7 @@ export async function GET() {
     
     for (const collectionName of collections) {
       try {
-        const snapshot = await getDocs(collection(db, collectionName));
+        const snapshot = await adminDb.collection(collectionName).get();
         collectionStatus[collectionName] = {
           exists: true,
           documentCount: snapshot.size
@@ -50,7 +54,7 @@ export async function GET() {
     
     return NextResponse.json({
       success: true,
-      message: 'Firebase Firestore 연결 성공!',
+      message: 'Firebase Admin Firestore 연결 성공!',
       data: {
         testDocument: testData,
         collections: collectionStatus,
@@ -60,9 +64,9 @@ export async function GET() {
     });
     
   } catch (error: unknown) {
-    console.error('Firebase 연결 테스트 실패:', error);
+    console.error('Firebase Admin 연결 테스트 실패:', error);
     
-    let errorMessage = 'Firebase 연결 테스트 중 오류가 발생했습니다.';
+    let errorMessage = 'Firebase Admin 연결 테스트 중 오류가 발생했습니다.';
     let errorDetails = '';
     
     if (error instanceof Error) {
@@ -87,15 +91,20 @@ export async function POST(request: NextRequest) {
   try {
     const { testData } = await request.json();
     
+    const adminDb = getAdminDb();
+    if (!adminDb) {
+      throw new Error('Firebase Admin 초기화 실패');
+    }
+    
     // 사용자 정의 테스트 데이터로 Firestore 쓰기 테스트
-    const customTestRef = doc(db, 'test', 'custom');
-    await setDoc(customTestRef, {
+    const customTestRef = adminDb.collection('test').doc('custom');
+    await customTestRef.set({
       ...testData,
-      timestamp: serverTimestamp(),
+      timestamp: new Date(),
       source: 'API 테스트'
     });
     
-    const savedDoc = await getDoc(customTestRef);
+    const savedDoc = await customTestRef.get();
     
     return NextResponse.json({
       success: true,
