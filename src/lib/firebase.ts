@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { initializeApp as initializeAdminApp, getApps as getAdminApps, cert } from 'firebase-admin/app';
-import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import { getFirestore as getAdminFirestore, Firestore } from 'firebase-admin/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -23,9 +23,9 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 
 // Admin SDK 초기화 (서버 사이드에서만 사용)
-let adminDb: any = null;
+let adminDb: Firestore | null = null;
 
-export function getAdminDb() {
+export function getAdminDb(): Firestore | null {
   if (adminDb) return adminDb;
   
   // 서버 환경에서만 Admin SDK 초기화
