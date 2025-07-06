@@ -57,15 +57,17 @@ export async function GET(request: NextRequest) {
         // OAuth 인증 코드로 토큰 교환
         console.log('OAuth 토큰 교환 시작:', { mallId, code: code.substring(0, 10) + '...' });
         
-        const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, {
-          grant_type: 'authorization_code',
-          client_id: clientId,
-          client_secret: clientSecret,
-          code: code,
-          redirect_uri: redirectUri
-        }, {
+        // Form data 형식으로 요청 본문 구성
+        const formData = new URLSearchParams();
+        formData.append('grant_type', 'authorization_code');
+        formData.append('client_id', clientId);
+        formData.append('client_secret', clientSecret);
+        formData.append('code', code);
+        formData.append('redirect_uri', redirectUri);
+        
+        const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, formData, {
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/x-www-form-urlencoded'
           }
         });
 
@@ -88,13 +90,15 @@ export async function GET(request: NextRequest) {
         // Private App 방식 (기존 코드)
         console.log('Private App 토큰 발급 시작:', { mallId });
         
-        const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, {
-          grant_type: 'client_credentials',
-          client_id: clientId,
-          client_secret: clientSecret
-        }, {
+        // Form data 형식으로 요청 본문 구성
+        const formData = new URLSearchParams();
+        formData.append('grant_type', 'client_credentials');
+        formData.append('client_id', clientId);
+        formData.append('client_secret', clientSecret);
+        
+        const tokenResponse = await axios.post(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, formData, {
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/x-www-form-urlencoded'
           }
         });
 
@@ -181,13 +185,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 카페24 토큰 발급 API 호출
-    const tokenResponse = await axios.post(`https://${mall_id}.cafe24api.com/api/v2/oauth/token`, {
-      grant_type: 'client_credentials',
-      client_id: client_id,
-      client_secret: client_secret
-    }, {
+    const formData = new URLSearchParams();
+    formData.append('grant_type', 'client_credentials');
+    formData.append('client_id', client_id);
+    formData.append('client_secret', client_secret);
+    
+    const tokenResponse = await axios.post(`https://${mall_id}.cafe24api.com/api/v2/oauth/token`, formData, {
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/x-www-form-urlencoded'
       }
     });
 

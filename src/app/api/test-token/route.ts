@@ -31,13 +31,14 @@ export async function POST(request: NextRequest) {
     });
 
     // 카페24 토큰 발급 API 호출
-    const tokenResponse = await axios.post(`https://${mall_id}.cafe24api.com/api/v2/oauth/token`, {
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret
-    }, {
+    const formData = new URLSearchParams();
+    formData.append('grant_type', 'client_credentials');
+    formData.append('client_id', clientId);
+    formData.append('client_secret', clientSecret);
+    
+    const tokenResponse = await axios.post(`https://${mall_id}.cafe24api.com/api/v2/oauth/token`, formData, {
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/x-www-form-urlencoded'
       }
     });
 
