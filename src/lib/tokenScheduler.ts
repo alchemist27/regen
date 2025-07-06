@@ -175,7 +175,7 @@ export class TokenScheduler {
         timestamp: new Date().toISOString(),
         type: 'error',
         message: '스케줄된 토큰 확인 실패',
-        details: error instanceof Error ? error.message : '알 수 없는 오류',
+        details: { error: error instanceof Error ? error.message : '알 수 없는 오류' },
         success: false,
         duration_ms: duration
       });
@@ -269,7 +269,7 @@ export class TokenScheduler {
             type: 'error',
             mall_id: mallId,
             message: `토큰 갱신 실패 (${attempts}회 시도)`,
-            details: error instanceof Error ? error.message : '알 수 없는 오류',
+            details: { error: error instanceof Error ? error.message : '알 수 없는 오류' },
             success: false
           });
         } else {

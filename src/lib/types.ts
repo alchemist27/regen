@@ -62,12 +62,12 @@ export interface ShopData {
 export interface ApiRequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   headers?: Record<string, string>;
-  data?: any;
+  data?: Record<string, unknown>;
   params?: Record<string, string>;
   timeout?: number;
 }
 
-export interface Cafe24ApiResponse<T = any> {
+export interface Cafe24ApiResponse<T = Record<string, unknown>> {
   success: boolean;
   data?: T;
   error?: string;
@@ -103,10 +103,10 @@ export interface AuthUrlResponse {
 // ===== 게시판 API 타입 =====
 export interface BoardListResponse {
   boards: BoardInfo[];
-  links?: any[];
+  links?: Record<string, unknown>[];
 }
 
-export interface BoardInfo {
+interface BoardInfo {
   shop_no: number;
   board_no: number;
   board_id: string;
@@ -308,7 +308,7 @@ export interface SchedulerLog {
   type: 'check' | 'refresh' | 'notification' | 'error';
   mall_id?: string;
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
   success: boolean;
   duration_ms?: number;
 }
@@ -363,28 +363,9 @@ export interface Cafe24Config {
 }
 
 // ===== 에러 타입 =====
-export class Cafe24TokenError extends Error {
-  constructor(
-    message: string,
-    public code?: string,
-    public statusCode?: number,
-    public details?: any
-  ) {
-    super(message);
-    this.name = 'Cafe24TokenError';
-  }
-}
+// Cafe24TokenError는 인터페이스로 대체
 
-export class Cafe24ApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode?: number,
-    public response?: any
-  ) {
-    super(message);
-    this.name = 'Cafe24ApiError';
-  }
-}
+// Cafe24ApiError는 위에서 인터페이스로 정의됨
 
 // ===== 상수 =====
 export const TOKEN_EXPIRY_BUFFER_MINUTES = 5;

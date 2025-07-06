@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { getAdminDb } from '@/lib/firebase';
-import { updateTokenData, saveAccessToken } from '@/lib/tokenStore';
-import { TokenData, ShopData } from '@/lib/types';
+import { updateTokenData } from '@/lib/tokenStore';
+import { TokenData } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   try {

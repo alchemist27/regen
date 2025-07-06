@@ -3,13 +3,7 @@ import {
   getDoc, 
   setDoc, 
   deleteDoc, 
-  collection, 
-  query, 
-  where, 
-  getDocs,
-  updateDoc,
-  serverTimestamp,
-  Timestamp 
+  serverTimestamp
 } from 'firebase/firestore';
 import { db, getAdminDb } from './firebase';
 import { 
@@ -152,15 +146,15 @@ export async function getShopData(mallId: string): Promise<ShopData | null> {
   }
 
   // Firestore Timestamp를 문자열로 변환
-  const convertTimestamp = (timestamp: any): string => {
+  const convertTimestamp = (timestamp: unknown): string => {
     if (!timestamp) return '';
-    if (timestamp.toDate) {
-      return timestamp.toDate().toISOString();
+    if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp) {
+      return (timestamp as { toDate: () => Date }).toDate().toISOString();
     }
     if (timestamp instanceof Date) {
       return timestamp.toISOString();
     }
-    return timestamp.toString();
+    return timestamp?.toString() || '';
   };
 
   return {
@@ -356,15 +350,15 @@ export async function getAllShopsData(): Promise<ShopData[]> {
   for (const doc of snapshot.docs) {
     const data = doc.data();
     if (data) {
-      const convertTimestamp = (timestamp: any): string => {
+      const convertTimestamp = (timestamp: unknown): string => {
         if (!timestamp) return '';
-        if (timestamp.toDate) {
-          return timestamp.toDate().toISOString();
+        if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp) {
+          return (timestamp as { toDate: () => Date }).toDate().toISOString();
         }
         if (timestamp instanceof Date) {
           return timestamp.toISOString();
         }
-        return timestamp.toString();
+        return timestamp?.toString() || '';
       };
 
       shops.push({

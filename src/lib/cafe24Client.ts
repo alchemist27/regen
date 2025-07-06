@@ -7,20 +7,12 @@ import {
   checkTokenStatus 
 } from './tokenStore';
 import { 
-  StoredToken, 
   TokenData, 
-  ShopData, 
-  Cafe24ApiResponse, 
   ApiRequestOptions, 
-  Cafe24ApiError,
-  BoardListResponse,
   BoardArticle,
   BoardComment,
-  HealthCheckResult,
-  TOKEN_EXPIRY_BUFFER_MINUTES,
-  DEFAULT_API_TIMEOUT_MS
+  TOKEN_EXPIRY_BUFFER_MINUTES
 } from './types';
-import { logCafe24Request } from './logging';
 
 export class Cafe24Client {
   private mallId: string;
@@ -184,7 +176,7 @@ export class Cafe24Client {
       if (axiosError.response?.status === 401) {
         throw new Error(`${context} 실패: 인증 정보가 올바르지 않습니다.`);
       } else if (axiosError.response?.status === 400) {
-        const errorData = axiosError.response.data as any;
+        const errorData = axiosError.response.data as Record<string, unknown>;
         if (errorData?.error === 'invalid_grant') {
           throw new Error(`${context} 실패: 유효하지 않은 Grant Type입니다.`);
         }
@@ -200,7 +192,7 @@ export class Cafe24Client {
   /**
    * 인증된 API 요청
    */
-  private async makeAuthenticatedRequest<T = any>(
+  private async makeAuthenticatedRequest<T>(
     endpoint: string, 
     options: ApiRequestOptions = { method: 'GET' }
   ): Promise<T> {
@@ -267,7 +259,7 @@ export class Cafe24Client {
       
       const cafe24Error = new Error(
         `API 요청 실패: ${axiosError.response?.statusText || axiosError.message}`
-      ) as any;
+      ) as Error & { statusCode?: number; response?: AxiosResponse };
       cafe24Error.statusCode = axiosError.response?.status;
       cafe24Error.response = axiosError.response;
       
@@ -343,7 +335,7 @@ export class Cafe24Client {
   /**
    * 토큰 상태 확인
    */
-  public async checkTokenStatus(): Promise<any> {
+  public async checkTokenStatus() {
     return await checkTokenStatus(this.mallId);
   }
 

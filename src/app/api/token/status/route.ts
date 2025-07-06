@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCafe24Client } from '@/lib/cafe24Client';
 import { getShopData, checkTokenStatus } from '@/lib/tokenStore';
-import { TokenStatus } from '@/lib/types';
 
 /**
  * 토큰 상태 확인 API
