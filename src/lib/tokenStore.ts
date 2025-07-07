@@ -2,8 +2,7 @@ import {
   doc, 
   getDoc, 
   setDoc, 
-  deleteDoc, 
-  serverTimestamp
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { 
@@ -11,8 +10,6 @@ import {
   TokenData, 
   ShopData, 
   TokenStatus,
-  COLLECTIONS,
-  DOCUMENT_IDS,
   TOKEN_EXPIRY_BUFFER_MINUTES
 } from './types';
 
@@ -223,7 +220,7 @@ export async function updateTokenData(
 
   try {
     const now = new Date();
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       updated_at: now.toISOString(),
       last_refresh_at: now.toISOString()
     };
