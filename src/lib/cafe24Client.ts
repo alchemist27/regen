@@ -36,17 +36,24 @@ export class Cafe24Client {
    * 유효한 토큰 확보 (자동 갱신 포함)
    */
   private async ensureValidToken(): Promise<string> {
+    console.log(`🔍 ${this.mallId}: 토큰 확보 시작`);
+    
     // 캐시된 토큰 확인
     if (this.tokenCache && Date.now() < this.tokenCache.expiresAt) {
+      console.log(`✅ ${this.mallId}: 캐시된 토큰 사용`);
       return this.tokenCache.token;
     }
 
     // 저장된 토큰 확인
+    console.log(`🔍 ${this.mallId}: Firestore에서 토큰 조회 시도`);
     const storedToken = await getStoredAccessToken(this.mallId);
     
     if (!storedToken) {
+      console.error(`❌ ${this.mallId}: Firestore에서 토큰을 찾을 수 없음`);
       throw new Error('토큰이 없습니다. 인증이 필요합니다.');
     }
+
+    console.log(`✅ ${this.mallId}: Firestore에서 토큰 발견`);
 
     // 만료 5분 전에 자동 갱신
     const bufferTime = Date.now() + (TOKEN_EXPIRY_BUFFER_MINUTES * 60 * 1000);

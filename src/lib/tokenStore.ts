@@ -186,16 +186,24 @@ export async function updateTokenData(
   mallId: string, 
   tokenData: Partial<TokenData>
 ): Promise<void> {
+  console.log('🔄 updateTokenData 시작:', { mallId, has_access_token: !!tokenData.access_token });
+  
   // Client SDK 사용으로 전환
   if (!db) {
     throw new Error('Firebase가 초기화되지 않았습니다.');
   }
 
   try {
-    const { doc, updateDoc } = await import('firebase/firestore');
+    const { doc, updateDoc, setDoc, getDoc } = await import('firebase/firestore');
     const shopRef = doc(db, 'shops', mallId);
     
+    // 기존 문서 확인
+    const docSnap = await getDoc(shopRef);
+    const existingData = docSnap.exists() ? docSnap.data() : {};
+    
     const updateData: Partial<ShopData> = {
+      ...existingData,
+      mall_id: mallId,
       updated_at: new Date().toISOString(),
       last_refresh_at: new Date().toISOString()
     };
@@ -235,10 +243,42 @@ export async function updateTokenData(
 
     updateData.status = 'ready';
 
-    await updateDoc(shopRef, updateData);
+    // Firestore에 저장 (문서가 없으면 생성, 있으면 업데이트)
+    if (docSnap.exists()) {
+      await updateDoc(shopRef, updateData);
+      console.log('✅ Firestore 문서 업데이트 완료:', mallId);
+    } else {
+      // 새 문서 생성 시 기본값 설정
+      const newShopData: ShopData = {
+        mall_id: mallId,
+        user_id: updateData.user_id || 'oauth_user',
+        user_name: updateData.user_name || 'OAuth 사용자',
+        user_type: updateData.user_type || 'oauth',
+        timestamp: updateData.timestamp || Date.now().toString(),
+        hmac: updateData.hmac || '',
+        access_token: updateData.access_token || '',
+        refresh_token: updateData.refresh_token || '',
+        token_type: updateData.token_type || 'Bearer',
+        expires_in: updateData.expires_in || 7200,
+        expires_at: updateData.expires_at || '',
+        token_error: updateData.token_error || '',
+        installed_at: updateData.installed_at || new Date().toISOString(),
+        updated_at: updateData.updated_at || new Date().toISOString(),
+        last_refresh_at: updateData.last_refresh_at || new Date().toISOString(),
+        status: updateData.status || 'ready',
+        app_type: updateData.app_type || 'oauth',
+        auth_code: updateData.auth_code || '',
+        client_id: updateData.client_id || process.env.CAFE24_CLIENT_ID || '',
+        scope: updateData.scope || 'mall.read_community,mall.write_community'
+      };
+      
+      await setDoc(shopRef, newShopData);
+      console.log('✅ Firestore 새 문서 생성 완료:', mallId);
+    }
 
     // 클라이언트 사이드 토큰도 업데이트
     if (tokenData.access_token && tokenData.expires_in) {
+      console.log('🔄 클라이언트 사이드 토큰 저장 시작...');
       await saveAccessToken(
         mallId, 
         tokenData.access_token, 
@@ -246,11 +286,12 @@ export async function updateTokenData(
         tokenData.refresh_token,
         tokenData.token_type
       );
+      console.log('✅ 클라이언트 사이드 토큰 저장 완료');
     }
 
     console.log('✅ 토큰 데이터 업데이트 완료');
   } catch (error) {
-    console.error('Client SDK로 토큰 데이터 업데이트 실패:', error);
+    console.error('❌ 토큰 데이터 업데이트 실패:', error);
     throw error;
   }
 }
