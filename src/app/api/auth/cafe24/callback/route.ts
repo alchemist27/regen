@@ -131,6 +131,30 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 안전한 만료 시간 계산
+    const calculateExpiresAt = (expiresIn: number | undefined): string => {
+      if (!expiresIn || isNaN(expiresIn) || expiresIn <= 0) {
+        // 기본값: 2시간 (7200초)
+        expiresIn = 7200;
+      }
+      
+      try {
+        const expiresAtTime = Date.now() + (expiresIn * 1000);
+        const expiresAtDate = new Date(expiresAtTime);
+        
+        // 유효한 날짜인지 확인
+        if (isNaN(expiresAtDate.getTime())) {
+          throw new Error('Invalid date calculation');
+        }
+        
+        return expiresAtDate.toISOString();
+      } catch (error) {
+        console.error('❌ 만료 시간 계산 실패:', error);
+        // 기본값으로 2시간 후 설정
+        return new Date(Date.now() + (7200 * 1000)).toISOString();
+      }
+    };
+
     // 서버 메모리에 임시 저장 (즉시 사용 가능)
     const shopData = {
       mall_id: mallId,
@@ -143,7 +167,7 @@ export async function GET(request: NextRequest) {
       refresh_token: tokenData?.refresh_token || '',
       token_type: tokenData?.token_type || 'Bearer',
       expires_in: tokenData?.expires_in || 7200,
-      expires_at: tokenData ? new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString() : '',
+      expires_at: calculateExpiresAt(tokenData?.expires_in),
       token_error: tokenError,
       installed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

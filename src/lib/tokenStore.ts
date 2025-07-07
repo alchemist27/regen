@@ -37,7 +37,21 @@ export async function saveTokenData(
 
   try {
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + (tokenData.expires_in * 1000));
+    
+    // 안전한 만료 시간 계산
+    let expiresIn = tokenData.expires_in;
+    if (!expiresIn || isNaN(expiresIn) || expiresIn <= 0) {
+      console.warn('⚠️ 잘못된 expires_in 값, 기본값(7200초) 사용:', expiresIn);
+      expiresIn = 7200; // 기본값: 2시간
+    }
+    
+    const expiresAtTime = now.getTime() + (expiresIn * 1000);
+    const expiresAt = new Date(expiresAtTime);
+    
+    // 유효한 날짜인지 확인
+    if (isNaN(expiresAt.getTime())) {
+      throw new Error('Invalid date calculation for expires_at');
+    }
 
     // 토큰 컬렉션에 저장
     const tokenDocRef = doc(db, TOKENS_COLLECTION, mallId);
@@ -234,9 +248,26 @@ export async function updateTokenData(
     }
 
     if (tokenData.expires_in) {
-      const expiresAt = new Date(now.getTime() + (tokenData.expires_in * 1000));
-      updateData.expires_at = expiresAt.toISOString();
-      updateData.expires_in = tokenData.expires_in;
+      // 안전한 만료 시간 계산
+      let expiresIn = tokenData.expires_in;
+      if (!expiresIn || isNaN(expiresIn) || expiresIn <= 0) {
+        console.warn('⚠️ 잘못된 expires_in 값, 기본값(7200초) 사용:', expiresIn);
+        expiresIn = 7200; // 기본값: 2시간
+      }
+      
+      const expiresAtTime = now.getTime() + (expiresIn * 1000);
+      const expiresAt = new Date(expiresAtTime);
+      
+      // 유효한 날짜인지 확인
+      if (!isNaN(expiresAt.getTime())) {
+        updateData.expires_at = expiresAt.toISOString();
+        updateData.expires_in = expiresIn;
+      } else {
+        console.error('❌ 날짜 계산 실패, 기본값 사용');
+        const defaultExpiresAt = new Date(now.getTime() + (7200 * 1000));
+        updateData.expires_at = defaultExpiresAt.toISOString();
+        updateData.expires_in = 7200;
+      }
     }
 
     if (tokenData.token_type) {
