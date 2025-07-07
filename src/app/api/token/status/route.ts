@@ -29,182 +29,57 @@ function safeFormatDate(timestamp: number | null | undefined): string | null {
 
 /**
  * 토큰 상태 확인 API
- * GET /api/token/status?mall_id=xxx&access_token=xxx&expires_at=xxx
+ * GET /api/token/status?mall_id=xxx
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const mall_id = searchParams.get('mall_id');
-    const access_token = searchParams.get('access_token');
-    const expires_at = searchParams.get('expires_at');
+    const mallId = searchParams.get('mall_id');
 
-    if (!mall_id) {
+    if (!mallId) {
       return NextResponse.json(
         { 
           success: false,
-          error: 'mall_id가 필요합니다.' 
+          error: 'mall_id 파라미터가 필요합니다.' 
         },
         { status: 400 }
       );
     }
 
-    console.log('🔍 토큰 상태 확인 요청:', { mall_id, has_access_token: !!access_token, expires_at });
+    console.log(`🔍 토큰 상태 확인 요청: ${mallId}`);
 
-    // URL 파라미터로 토큰 정보가 전달된 경우 직접 사용
-    if (access_token && expires_at) {
-      console.log('📋 URL 파라미터로 토큰 정보 전달됨');
-      
-      let expiresAtTimestamp: number;
-      try {
-        expiresAtTimestamp = new Date(expires_at).getTime();
-        if (isNaN(expiresAtTimestamp)) {
-          throw new Error('Invalid expires_at format');
-        }
-      } catch (error) {
-        console.warn('만료 시간 파싱 오류:', error);
-        expiresAtTimestamp = Date.now() + (7200 * 1000); // 기본 2시간 후
-      }
+    const tokenStatus = await checkTokenStatus(mallId);
 
-      const now = Date.now();
-      const minutesLeft = Math.floor((expiresAtTimestamp - now) / (1000 * 60));
-      const isExpired = now >= expiresAtTimestamp;
-      const needsRefresh = !isExpired && (expiresAtTimestamp - now) <= (5 * 60 * 1000); // 5분 전
+    console.log(`📊 토큰 상태 결과:`, {
+      mallId,
+      valid: tokenStatus.valid,
+      minutesLeft: tokenStatus.minutesLeft,
+      needsRefresh: tokenStatus.needsRefresh,
+      hasError: !!tokenStatus.error
+    });
 
-      const tokenStatus = {
-        valid: !isExpired,
-        expiresAt: expiresAtTimestamp,
-        minutesLeft: Math.max(0, minutesLeft),
-        needsRefresh: needsRefresh,
-        error: isExpired ? '토큰이 만료되었습니다.' : undefined
-      };
-
-      // 🔥 중요: URL 파라미터의 토큰 정보를 Firestore에 저장
-      try {
-        const { saveShopDataViaRest } = await import('@/lib/firestoreRest');
-        const shopDataToSave = {
-          mall_id: mall_id,
-          user_id: '',
-          user_name: '',
-          user_type: '',
-          timestamp: '',
-          hmac: '',
-          access_token: access_token,
-          refresh_token: '', // URL 파라미터에는 refresh_token이 없음
-          token_type: 'Bearer',
-          expires_in: 7200,
-          expires_at: new Date(expiresAtTimestamp).toISOString(),
-          token_error: '',
-          installed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          last_refresh_at: new Date().toISOString(),
-          status: isExpired ? 'expired' : 'ready' as 'ready' | 'error' | 'pending' | 'expired',
-          app_type: 'oauth' as 'oauth' | 'private',
-          auth_code: '',
-          client_id: process.env.CAFE24_CLIENT_ID || '',
-          scope: 'mall.read_community,mall.write_community'
-        };
-
-        await saveShopDataViaRest(mall_id, shopDataToSave);
-        console.log('✅ URL 파라미터 토큰 정보를 Firestore에 저장 완료');
-      } catch (saveError) {
-        console.warn('⚠️ Firestore 저장 실패:', saveError);
-      }
-
-      const response = {
-        success: true,
-        mall_id: mall_id,
-        app_type: 'oauth',
-        status: isExpired ? 'expired' : 'ready',
-        token_status: tokenStatus,
-        installed_at: new Date().toISOString(),
-        last_refresh_at: new Date().toISOString(),
-        expires_at_readable: safeFormatDate(expiresAtTimestamp),
-        needs_refresh: needsRefresh,
-        health_check: false,
-        source: 'url_params'
-      };
-
-      // 토큰이 유효한 경우 헬스 체크 수행
-      if (tokenStatus.valid) {
-        try {
-          const client = createCafe24Client(mall_id);
-          response.health_check = await client.healthCheck();
-        } catch (error) {
-          console.warn(`헬스 체크 실패 (${mall_id}):`, error);
-          response.health_check = false;
-        }
-      }
-
-      return NextResponse.json(response);
-    }
-
-    // 쇼핑몰 정보 확인 (서버 메모리 → REST API → Client SDK 순서)
-    let shopData = getServerShopData(mall_id);
-    if (!shopData) {
-      console.log('서버 메모리에서 찾을 수 없음, Firestore REST API 조회 시도:', mall_id);
-      shopData = await getShopDataViaRest(mall_id);
-    }
-    if (!shopData) {
-      console.log('Firestore REST API에서 찾을 수 없음, Client SDK 조회 시도:', mall_id);
-      shopData = await getShopData(mall_id);
-    }
-    
-    if (!shopData) {
-      console.log('❌ 쇼핑몰 정보를 찾을 수 없음:', mall_id);
-      
-      // 기본 응답 제공 (토큰 정보 없음)
-      return NextResponse.json({
-        success: false,
-        error: '쇼핑몰 정보를 찾을 수 없습니다. OAuth 앱을 다시 설치해주세요.',
-        mall_id: mall_id,
-        suggestion: '메인 페이지에서 "OAuth 앱 설치" 버튼을 클릭하여 다시 설치해주세요.'
-      }, { status: 404 });
-    }
-
-    console.log('✅ 쇼핑몰 정보 조회 성공:', { mall_id, source: shopData ? 'found' : 'not_found' });
-
-    // 토큰 상태 확인 (서버 메모리 우선)
-    let tokenStatus = checkServerTokenStatus(mall_id);
-    if (!tokenStatus.valid && tokenStatus.error === '쇼핑몰 정보를 찾을 수 없습니다.') {
-      console.log('서버 메모리에서 토큰 상태 확인 실패, Firestore 조회 시도:', mall_id);
-      tokenStatus = await checkTokenStatus(mall_id);
-    }
-
-    // 추가 정보 포함
-    const response = {
+    return NextResponse.json({
       success: true,
-      mall_id: mall_id,
-      app_type: shopData.app_type,
-      status: shopData.status,
-      token_status: tokenStatus,
-      installed_at: shopData.installed_at,
-      last_refresh_at: shopData.last_refresh_at,
-      expires_at_readable: safeFormatDate(tokenStatus.expiresAt),
-      needs_refresh: tokenStatus.needsRefresh || false,
-      health_check: false,
-      source: 'database'
-    };
-
-    // 토큰이 유효한 경우 헬스 체크 수행
-    if (tokenStatus.valid) {
-      try {
-        const client = createCafe24Client(mall_id);
-        response.health_check = await client.healthCheck();
-      } catch (error) {
-        console.warn(`헬스 체크 실패 (${mall_id}):`, error);
-        response.health_check = false;
+      data: {
+        mall_id: mallId,
+        valid: tokenStatus.valid,
+        expires_at: tokenStatus.expiresAt,
+        minutes_left: tokenStatus.minutesLeft,
+        needs_refresh: tokenStatus.needsRefresh,
+        error: tokenStatus.error,
+        status: tokenStatus.valid ? 'active' : 'expired',
+        checked_at: new Date().toISOString()
       }
-    }
+    });
 
-    return NextResponse.json(response);
-
-  } catch (error: unknown) {
-    console.error('토큰 상태 확인 오류:', error);
+  } catch (error) {
+    console.error('❌ 토큰 상태 확인 실패:', error);
     
     return NextResponse.json(
       { 
         success: false,
-        error: error instanceof Error ? error.message : '토큰 상태 확인 중 오류 발생'
+        error: '토큰 상태 확인 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );
@@ -217,7 +92,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { mall_ids } = await request.json();
+    const body = await request.json();
+    const { mall_ids } = body;
 
     if (!mall_ids || !Array.isArray(mall_ids)) {
       return NextResponse.json(
@@ -229,59 +105,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log(`🔍 일괄 토큰 상태 확인 요청: ${mall_ids.length}개 쇼핑몰`);
+
     const results = [];
 
-    for (const mall_id of mall_ids) {
+    for (const mallId of mall_ids) {
       try {
-        const shopData = await getShopData(mall_id);
-        if (!shopData) {
-          results.push({
-            mall_id: mall_id,
-            success: false,
-            error: '쇼핑몰 정보를 찾을 수 없습니다.'
-          });
-          continue;
-        }
-
-        const tokenStatus = await checkTokenStatus(mall_id);
+        const tokenStatus = await checkTokenStatus(mallId);
         
         results.push({
-          mall_id: mall_id,
+          mall_id: mallId,
           success: true,
-          app_type: shopData.app_type,
-          status: shopData.status,
-          token_valid: tokenStatus.valid,
-          minutes_left: tokenStatus.minutesLeft,
-          needs_refresh: tokenStatus.needsRefresh || false,
+          valid: tokenStatus.valid,
           expires_at: tokenStatus.expiresAt,
-          expires_at_readable: safeFormatDate(tokenStatus.expiresAt)
+          minutes_left: tokenStatus.minutesLeft,
+          needs_refresh: tokenStatus.needsRefresh,
+          error: tokenStatus.error,
+          status: tokenStatus.valid ? 'active' : 'expired'
         });
-
       } catch (error) {
         results.push({
-          mall_id: mall_id,
+          mall_id: mallId,
           success: false,
-          error: error instanceof Error ? error.message : '알 수 없는 오류'
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     }
 
+    const summary = {
+      total_count: results.length,
+      valid_count: results.filter(r => r.success && r.valid).length,
+      expired_count: results.filter(r => r.success && !r.valid).length,
+      error_count: results.filter(r => !r.success).length,
+      needs_refresh_count: results.filter(r => r.success && r.needs_refresh).length
+    };
+
+    console.log(`📊 일괄 토큰 상태 확인 완료:`, summary);
+
     return NextResponse.json({
       success: true,
-      total_count: results.length,
-      valid_tokens: results.filter(r => r.success && r.token_valid).length,
-      invalid_tokens: results.filter(r => !r.success || !r.token_valid).length,
-      needs_refresh: results.filter(r => r.success && r.needs_refresh).length,
-      results: results
+      summary: summary,
+      results: results,
+      checked_at: new Date().toISOString()
     });
 
-  } catch (error: unknown) {
-    console.error('일괄 토큰 상태 확인 오류:', error);
+  } catch (error) {
+    console.error('❌ 일괄 토큰 상태 확인 실패:', error);
     
     return NextResponse.json(
       { 
         success: false,
-        error: error instanceof Error ? error.message : '일괄 상태 확인 중 오류 발생'
+        error: '일괄 토큰 상태 확인 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );

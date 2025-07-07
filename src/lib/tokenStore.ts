@@ -17,195 +17,215 @@ import {
 } from './types';
 
 // ===== 상수 =====
-const TOKENS_COLLECTION = COLLECTIONS.TOKENS;
-const TOKEN_DOC_ID = DOCUMENT_IDS.TOKENS;
+const TOKENS_COLLECTION = 'cafe24_tokens';
+const SHOPS_COLLECTION = 'cafe24_shops';
 
-// ===== 클라이언트 사이드 토큰 관리 =====
+// ===== 통합 토큰 관리 시스템 =====
 
 /**
- * Access Token 저장 (클라이언트 사이드)
+ * 토큰 데이터 저장 (통합 방식)
  */
-export async function saveAccessToken(
+export async function saveTokenData(
   mallId: string,
-  accessToken: string,
-  expiresIn: number,
-  refreshToken?: string,
-  tokenType?: string
+  tokenData: TokenData,
+  userInfo?: {
+    userId?: string;
+    userName?: string;
+    userType?: string;
+  }
 ): Promise<void> {
   if (!db) {
-    throw new Error('Firebase 클라이언트가 초기화되지 않았습니다.');
+    throw new Error('Firebase가 초기화되지 않았습니다.');
   }
 
-  const tokenData: StoredToken = {
-    access_token: accessToken,
-    expires_at: Date.now() + (expiresIn * 1000),
-    refresh_token: refreshToken,
-    token_type: tokenType || 'Bearer',
-    scope: 'mall.read_community,mall.write_community'
-  };
+  try {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + (tokenData.expires_in * 1000));
 
-  const tokenRef = doc(db, TOKENS_COLLECTION, `${mallId}_${TOKEN_DOC_ID}`);
-  
-  await setDoc(tokenRef, {
-    access_token: tokenData,
-    refresh_token: refreshToken || null,
-    mall_id: mallId,
-    updated_at: serverTimestamp(),
-    created_at: serverTimestamp()
-  }, { merge: true });
+    // 토큰 컬렉션에 저장
+    const tokenDocRef = doc(db, TOKENS_COLLECTION, mallId);
+    const tokenDoc = {
+      mall_id: mallId,
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token || '',
+      token_type: tokenData.token_type || 'Bearer',
+      expires_in: tokenData.expires_in,
+      expires_at: expiresAt.toISOString(),
+      scope: tokenData.scope || 'mall.read_community,mall.write_community',
+      created_at: now.toISOString(),
+      updated_at: now.toISOString()
+    };
 
-  console.log(`✅ 클라이언트 토큰 저장 완료: ${mallId}`);
+    await setDoc(tokenDocRef, tokenDoc);
+
+    // 쇼핑몰 정보 컬렉션에 저장
+    const shopDocRef = doc(db, SHOPS_COLLECTION, mallId);
+    const shopDoc = {
+      mall_id: mallId,
+      user_id: userInfo?.userId || 'oauth_user',
+      user_name: userInfo?.userName || 'OAuth 사용자',
+      user_type: userInfo?.userType || 'oauth',
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token || '',
+      token_type: tokenData.token_type || 'Bearer',
+      expires_in: tokenData.expires_in,
+      expires_at: expiresAt.toISOString(),
+      scope: tokenData.scope || 'mall.read_community,mall.write_community',
+      status: 'ready' as const,
+      app_type: 'oauth' as const,
+      client_id: process.env.CAFE24_CLIENT_ID || '',
+      installed_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      last_refresh_at: now.toISOString()
+    };
+
+    await setDoc(shopDocRef, shopDoc, { merge: true });
+
+    console.log(`✅ 토큰 데이터 저장 완료: ${mallId}`);
+    console.log(`✅ 토큰 만료 시간: ${expiresAt.toLocaleString('ko-KR')}`);
+
+  } catch (error) {
+    console.error('❌ 토큰 저장 실패:', error);
+    throw new Error(`토큰 저장 실패: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 /**
- * Access Token 조회 (클라이언트 사이드)
+ * 저장된 액세스 토큰 조회
  */
 export async function getStoredAccessToken(mallId: string): Promise<StoredToken | null> {
   if (!db) {
-    throw new Error('Firebase 클라이언트가 초기화되지 않았습니다.');
+    throw new Error('Firebase가 초기화되지 않았습니다.');
   }
 
-  const tokenRef = doc(db, TOKENS_COLLECTION, `${mallId}_${TOKEN_DOC_ID}`);
-  const docSnap = await getDoc(tokenRef);
+  try {
+    const tokenDocRef = doc(db, TOKENS_COLLECTION, mallId);
+    const docSnap = await getDoc(tokenDocRef);
 
-  if (!docSnap.exists()) {
+    if (!docSnap.exists()) {
+      console.log(`⚠️ 토큰 문서가 존재하지 않음: ${mallId}`);
+      return null;
+    }
+
+    const data = docSnap.data();
+    
+    if (!data.access_token) {
+      console.log(`⚠️ 액세스 토큰이 없음: ${mallId}`);
+      return null;
+    }
+
+    // 만료 시간 확인
+    const expiresAt = new Date(data.expires_at).getTime();
+    const now = Date.now();
+
+    if (now >= expiresAt) {
+      console.log(`⚠️ 토큰 만료: ${mallId}, 만료 시간: ${new Date(expiresAt).toLocaleString('ko-KR')}`);
+      return null;
+    }
+
+    return {
+      access_token: data.access_token,
+      expires_at: expiresAt,
+      refresh_token: data.refresh_token,
+      token_type: data.token_type,
+      scope: data.scope
+    };
+
+  } catch (error) {
+    console.error('❌ 토큰 조회 실패:', error);
     return null;
   }
-
-  const data = docSnap.data();
-  const tokenData = data.access_token;
-
-  if (!tokenData) {
-    return null;
-  }
-
-  // 토큰 만료 확인
-  if (Date.now() >= tokenData.expires_at) {
-    console.log(`⚠️ 토큰 만료: ${mallId}`);
-    return null;
-  }
-
-  return tokenData;
 }
 
 /**
- * Refresh Token 조회 (클라이언트 사이드)
+ * 저장된 리프레시 토큰 조회
  */
 export async function getStoredRefreshToken(mallId: string): Promise<string | null> {
   if (!db) {
-    throw new Error('Firebase 클라이언트가 초기화되지 않았습니다.');
-  }
-
-  const tokenRef = doc(db, TOKENS_COLLECTION, `${mallId}_${TOKEN_DOC_ID}`);
-  const docSnap = await getDoc(tokenRef);
-
-  if (!docSnap.exists()) {
-    return null;
-  }
-
-  const data = docSnap.data();
-  return data.refresh_token || null;
-}
-
-/**
- * 토큰 삭제 (클라이언트 사이드)
- */
-export async function deleteStoredToken(mallId: string): Promise<void> {
-  if (!db) {
-    throw new Error('Firebase 클라이언트가 초기화되지 않았습니다.');
-  }
-
-  const tokenRef = doc(db, TOKENS_COLLECTION, `${mallId}_${TOKEN_DOC_ID}`);
-  await deleteDoc(tokenRef);
-
-  console.log(`✅ 클라이언트 토큰 삭제 완료: ${mallId}`);
-}
-
-// ===== 서버 사이드 토큰 관리 =====
-
-/**
- * 쇼핑몰 데이터 조회 (서버 사이드)
- */
-export async function getShopData(mallId: string): Promise<ShopData | null> {
-  console.log('🔍 getShopData 호출:', mallId);
-  
-  // Client SDK 사용으로 전환
-  if (!db) {
-    console.error('❌ Firebase가 초기화되지 않았습니다.');
     throw new Error('Firebase가 초기화되지 않았습니다.');
   }
-  
+
   try {
-    const { doc, getDoc } = await import('firebase/firestore');
-    const docRef = doc(db, 'shops', mallId);
-    console.log('📄 Firestore 문서 참조 생성:', docRef.path);
-    
-    const docSnap = await getDoc(docRef);
-    console.log('📋 문서 존재 여부:', docSnap.exists());
-    
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      console.log('✅ 문서 데이터 조회 성공:', { mall_id: mallId, has_access_token: !!data.access_token });
-      
-      return {
-        mall_id: data.mall_id || mallId,
-        user_id: data.user_id || '',
-        user_name: data.user_name || '',
-        user_type: data.user_type || '',
-        timestamp: data.timestamp || '',
-        hmac: data.hmac || '',
-        access_token: data.access_token || '',
-        refresh_token: data.refresh_token || '',
-        token_type: data.token_type || 'Bearer',
-        expires_in: data.expires_in || 7200,
-        expires_at: data.expires_at || '',
-        token_error: data.token_error || '',
-        installed_at: data.installed_at || '',
-        updated_at: data.updated_at || '',
-        last_refresh_at: data.last_refresh_at || '',
-        status: data.status || 'pending',
-        app_type: data.app_type || 'oauth',
-        auth_code: data.auth_code || '',
-        client_id: data.client_id || '',
-        scope: data.scope || 'mall.read_community,mall.write_community'
-      };
+    const tokenDocRef = doc(db, TOKENS_COLLECTION, mallId);
+    const docSnap = await getDoc(tokenDocRef);
+
+    if (!docSnap.exists()) {
+      return null;
     }
-    
-    console.log('❌ 문서가 존재하지 않습니다:', mallId);
-    return null;
+
+    const data = docSnap.data();
+    return data.refresh_token || null;
+
   } catch (error) {
-    console.error('❌ Client SDK로 쇼핑몰 데이터 조회 실패:', error);
+    console.error('❌ 리프레시 토큰 조회 실패:', error);
     return null;
   }
 }
 
 /**
- * 토큰 데이터 업데이트 (서버 사이드)
+ * 쇼핑몰 데이터 조회
+ */
+export async function getShopData(mallId: string): Promise<ShopData | null> {
+  if (!db) {
+    throw new Error('Firebase가 초기화되지 않았습니다.');
+  }
+
+  try {
+    const shopDocRef = doc(db, SHOPS_COLLECTION, mallId);
+    const docSnap = await getDoc(shopDocRef);
+
+    if (!docSnap.exists()) {
+      console.log(`⚠️ 쇼핑몰 데이터가 존재하지 않음: ${mallId}`);
+      return null;
+    }
+
+    const data = docSnap.data();
+    
+    return {
+      mall_id: data.mall_id || mallId,
+      user_id: data.user_id || '',
+      user_name: data.user_name || '',
+      user_type: data.user_type || '',
+      timestamp: data.timestamp || '',
+      hmac: data.hmac || '',
+      access_token: data.access_token || '',
+      refresh_token: data.refresh_token || '',
+      token_type: data.token_type || 'Bearer',
+      expires_in: data.expires_in || 7200,
+      expires_at: data.expires_at || '',
+      token_error: data.token_error || '',
+      installed_at: data.installed_at || '',
+      updated_at: data.updated_at || '',
+      last_refresh_at: data.last_refresh_at || '',
+      status: data.status || 'pending',
+      app_type: data.app_type || 'oauth',
+      auth_code: data.auth_code || '',
+      client_id: data.client_id || '',
+      scope: data.scope || 'mall.read_community,mall.write_community'
+    };
+
+  } catch (error) {
+    console.error('❌ 쇼핑몰 데이터 조회 실패:', error);
+    return null;
+  }
+}
+
+/**
+ * 토큰 데이터 업데이트
  */
 export async function updateTokenData(
   mallId: string, 
   tokenData: Partial<TokenData>
 ): Promise<void> {
-  console.log('🔄 updateTokenData 시작:', { mallId, has_access_token: !!tokenData.access_token });
-  
-  // Client SDK 사용으로 전환
   if (!db) {
     throw new Error('Firebase가 초기화되지 않았습니다.');
   }
 
   try {
-    const { doc, updateDoc, setDoc, getDoc } = await import('firebase/firestore');
-    const shopRef = doc(db, 'shops', mallId);
-    
-    // 기존 문서 확인
-    const docSnap = await getDoc(shopRef);
-    const existingData = docSnap.exists() ? docSnap.data() : {};
-    
-    const updateData: Partial<ShopData> = {
-      ...existingData,
-      mall_id: mallId,
-      updated_at: new Date().toISOString(),
-      last_refresh_at: new Date().toISOString()
+    const now = new Date();
+    const updateData: any = {
+      updated_at: now.toISOString(),
+      last_refresh_at: now.toISOString()
     };
 
     if (tokenData.access_token) {
@@ -217,82 +237,34 @@ export async function updateTokenData(
     }
 
     if (tokenData.expires_in) {
-      try {
-        const expiresAtTimestamp = Date.now() + (tokenData.expires_in * 1000);
-        const expiresAt = new Date(expiresAtTimestamp);
-        
-        // 유효한 날짜인지 확인
-        if (isNaN(expiresAt.getTime())) {
-          throw new Error('Invalid expiration date');
-        }
-        
-        updateData.expires_at = expiresAt.toISOString();
-        updateData.expires_in = tokenData.expires_in;
-      } catch (dateError) {
-        console.warn('토큰 만료 시간 계산 오류:', dateError);
-        // 기본값으로 2시간 후 설정
-        const fallbackDate = new Date(Date.now() + (7200 * 1000));
-        updateData.expires_at = fallbackDate.toISOString();
-        updateData.expires_in = 7200;
-      }
+      const expiresAt = new Date(now.getTime() + (tokenData.expires_in * 1000));
+      updateData.expires_at = expiresAt.toISOString();
+      updateData.expires_in = tokenData.expires_in;
     }
 
     if (tokenData.token_type) {
       updateData.token_type = tokenData.token_type;
     }
 
+    if (tokenData.scope) {
+      updateData.scope = tokenData.scope;
+    }
+
     updateData.status = 'ready';
 
-    // Firestore에 저장 (문서가 없으면 생성, 있으면 업데이트)
-    if (docSnap.exists()) {
-      await updateDoc(shopRef, updateData);
-      console.log('✅ Firestore 문서 업데이트 완료:', mallId);
-    } else {
-      // 새 문서 생성 시 기본값 설정
-      const newShopData: ShopData = {
-        mall_id: mallId,
-        user_id: updateData.user_id || 'oauth_user',
-        user_name: updateData.user_name || 'OAuth 사용자',
-        user_type: updateData.user_type || 'oauth',
-        timestamp: updateData.timestamp || Date.now().toString(),
-        hmac: updateData.hmac || '',
-        access_token: updateData.access_token || '',
-        refresh_token: updateData.refresh_token || '',
-        token_type: updateData.token_type || 'Bearer',
-        expires_in: updateData.expires_in || 7200,
-        expires_at: updateData.expires_at || '',
-        token_error: updateData.token_error || '',
-        installed_at: updateData.installed_at || new Date().toISOString(),
-        updated_at: updateData.updated_at || new Date().toISOString(),
-        last_refresh_at: updateData.last_refresh_at || new Date().toISOString(),
-        status: updateData.status || 'ready',
-        app_type: updateData.app_type || 'oauth',
-        auth_code: updateData.auth_code || '',
-        client_id: updateData.client_id || process.env.CAFE24_CLIENT_ID || '',
-        scope: updateData.scope || 'mall.read_community,mall.write_community'
-      };
-      
-      await setDoc(shopRef, newShopData);
-      console.log('✅ Firestore 새 문서 생성 완료:', mallId);
-    }
+    // 토큰 컬렉션 업데이트
+    const tokenDocRef = doc(db, TOKENS_COLLECTION, mallId);
+    await setDoc(tokenDocRef, updateData, { merge: true });
 
-    // 클라이언트 사이드 토큰도 업데이트
-    if (tokenData.access_token && tokenData.expires_in) {
-      console.log('🔄 클라이언트 사이드 토큰 저장 시작...');
-      await saveAccessToken(
-        mallId, 
-        tokenData.access_token, 
-        tokenData.expires_in,
-        tokenData.refresh_token,
-        tokenData.token_type
-      );
-      console.log('✅ 클라이언트 사이드 토큰 저장 완료');
-    }
+    // 쇼핑몰 컬렉션 업데이트
+    const shopDocRef = doc(db, SHOPS_COLLECTION, mallId);
+    await setDoc(shopDocRef, updateData, { merge: true });
 
-    console.log('✅ 토큰 데이터 업데이트 완료');
+    console.log(`✅ 토큰 데이터 업데이트 완료: ${mallId}`);
+
   } catch (error) {
-    console.error('❌ 토큰 데이터 업데이트 실패:', error);
-    throw error;
+    console.error('❌ 토큰 업데이트 실패:', error);
+    throw new Error(`토큰 업데이트 실패: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -300,94 +272,113 @@ export async function updateTokenData(
  * 토큰 상태 확인
  */
 export async function checkTokenStatus(mallId: string): Promise<TokenStatus> {
-  const shopData = await getShopData(mallId);
-  
-  if (!shopData) {
-    return {
-      valid: false,
-      expiresAt: null,
-      minutesLeft: 0,
-      needsRefresh: false,
-      error: '쇼핑몰 정보를 찾을 수 없습니다.'
-    };
-  }
-
-  if (!shopData.access_token) {
-    return {
-      valid: false,
-      expiresAt: null,
-      minutesLeft: 0,
-      needsRefresh: false,
-      error: '액세스 토큰이 없습니다.'
-    };
-  }
-
-  // 만료 시간 파싱 및 검증
-  let expiresAt: number;
   try {
-    if (!shopData.expires_at || shopData.expires_at === '') {
+    const tokenData = await getStoredAccessToken(mallId);
+    
+    if (!tokenData) {
       return {
         valid: false,
-        expiresAt: 0,
+        expiresAt: null,
         minutesLeft: 0,
-        needsRefresh: true,
-        error: '토큰 만료 시간이 설정되지 않았습니다.'
+        needsRefresh: false,
+        error: '토큰이 없습니다.'
       };
     }
-    
-    expiresAt = new Date(shopData.expires_at).getTime();
-    
-    // 유효하지 않은 날짜인지 확인
-    if (isNaN(expiresAt)) {
+
+    const now = Date.now();
+    const expiresAt = tokenData.expires_at;
+    const minutesLeft = Math.floor((expiresAt - now) / (1000 * 60));
+
+    // 토큰 만료 확인
+    if (now >= expiresAt) {
       return {
         valid: false,
-        expiresAt: 0,
+        expiresAt: expiresAt,
         minutesLeft: 0,
         needsRefresh: true,
-        error: '토큰 만료 시간이 유효하지 않습니다.'
+        error: '토큰이 만료되었습니다.'
       };
     }
+
+    // 갱신 필요 여부 확인 (기본 5분 전)
+    const refreshThreshold = TOKEN_EXPIRY_BUFFER_MINUTES * 60 * 1000;
+    const needsRefresh = (expiresAt - now) <= refreshThreshold;
+
+    return {
+      valid: true,
+      expiresAt: expiresAt,
+      minutesLeft: minutesLeft,
+      needsRefresh: needsRefresh,
+      error: undefined
+    };
+
   } catch (error) {
     return {
       valid: false,
-      expiresAt: 0,
+      expiresAt: null,
       minutesLeft: 0,
-      needsRefresh: true,
-      error: `토큰 만료 시간 파싱 오류: ${error instanceof Error ? error.message : 'Unknown error'}`
+      needsRefresh: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
-
-  const now = Date.now();
-  const minutesLeft = Math.floor((expiresAt - now) / (1000 * 60));
-
-  // 토큰 만료 확인
-  if (now >= expiresAt) {
-    return {
-      valid: false,
-      expiresAt: expiresAt,
-      minutesLeft: 0,
-      needsRefresh: true,
-      error: '토큰이 만료되었습니다.'
-    };
-  }
-
-  // 갱신 필요 여부 확인 (기본 5분 전)
-  const refreshThreshold = TOKEN_EXPIRY_BUFFER_MINUTES * 60 * 1000;
-  const needsRefresh = (expiresAt - now) <= refreshThreshold;
-
-  return {
-    valid: true,
-    expiresAt: expiresAt,
-    minutesLeft: minutesLeft,
-    needsRefresh: needsRefresh
-  };
 }
 
 /**
- * 만료된 토큰 정리 (Client SDK 사용)
+ * 토큰 삭제
+ */
+export async function deleteStoredToken(mallId: string): Promise<void> {
+  if (!db) {
+    throw new Error('Firebase가 초기화되지 않았습니다.');
+  }
+
+  try {
+    // 토큰 컬렉션에서 삭제
+    const tokenDocRef = doc(db, TOKENS_COLLECTION, mallId);
+    await deleteDoc(tokenDocRef);
+
+    // 쇼핑몰 컬렉션에서 토큰 정보만 제거
+    const shopDocRef = doc(db, SHOPS_COLLECTION, mallId);
+    await setDoc(shopDocRef, {
+      access_token: '',
+      refresh_token: '',
+      status: 'expired',
+      updated_at: new Date().toISOString()
+    }, { merge: true });
+
+    console.log(`✅ 토큰 삭제 완료: ${mallId}`);
+
+  } catch (error) {
+    console.error('❌ 토큰 삭제 실패:', error);
+    throw new Error(`토큰 삭제 실패: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// ===== 레거시 호환성 함수들 =====
+
+/**
+ * @deprecated saveTokenData 사용 권장
+ */
+export async function saveAccessToken(
+  mallId: string,
+  accessToken: string,
+  expiresIn: number,
+  refreshToken?: string,
+  tokenType?: string
+): Promise<void> {
+  const tokenData: TokenData = {
+    access_token: accessToken,
+    expires_in: expiresIn,
+    refresh_token: refreshToken,
+    token_type: tokenType || 'Bearer'
+  };
+
+  await saveTokenData(mallId, tokenData);
+}
+
+/**
+ * 만료된 토큰 정리 (단순 로그만 출력)
  */
 export async function cleanupExpiredTokens(): Promise<number> {
-  // Client SDK로는 복잡한 쿼리가 제한적이므로 간단한 로그만 출력
   console.log('⚠️ 만료된 토큰 정리는 Admin SDK가 필요합니다.');
   return 0;
 }

@@ -58,22 +58,28 @@ export class Cafe24Client {
     // 만료 5분 전에 자동 갱신
     const bufferTime = Date.now() + (TOKEN_EXPIRY_BUFFER_MINUTES * 60 * 1000);
     if (storedToken.expires_at <= bufferTime) {
-      console.log('🔄 토큰 만료 임박, 자동 갱신 시도...');
-      await this.refreshAccessToken();
-      
-      // 갱신된 토큰 다시 조회
-      const newToken = await getStoredAccessToken(this.mallId);
-      if (!newToken) {
-        throw new Error('토큰 갱신 후 조회 실패');
+      console.log(`🔄 ${this.mallId}: 토큰 만료 임박, 자동 갱신 시도...`);
+      try {
+        await this.refreshAccessToken();
+        
+        // 갱신된 토큰 다시 조회
+        const newToken = await getStoredAccessToken(this.mallId);
+        if (!newToken) {
+          throw new Error('토큰 갱신 후 조회 실패');
+        }
+        
+        // 캐시 업데이트
+        this.tokenCache = {
+          token: newToken.access_token,
+          expiresAt: newToken.expires_at
+        };
+        
+        console.log(`✅ ${this.mallId}: 토큰 자동 갱신 완료`);
+        return newToken.access_token;
+      } catch (error) {
+        console.error(`❌ ${this.mallId}: 토큰 자동 갱신 실패:`, error);
+        throw new Error('토큰 갱신 실패. 재인증이 필요합니다.');
       }
-      
-      // 캐시 업데이트
-      this.tokenCache = {
-        token: newToken.access_token,
-        expiresAt: newToken.expires_at
-      };
-      
-      return newToken.access_token;
     }
 
     // 캐시 업데이트
@@ -82,6 +88,7 @@ export class Cafe24Client {
       expiresAt: storedToken.expires_at
     };
 
+    console.log(`✅ ${this.mallId}: 유효한 토큰 확보 완료`);
     return storedToken.access_token;
   }
 
@@ -89,26 +96,8 @@ export class Cafe24Client {
    * Access Token 갱신 (OAuth만 지원)
    */
   public async refreshAccessToken(): Promise<void> {
-    const shopData = await getShopData(this.mallId);
+    console.log(`🔄 ${this.mallId}: 토큰 갱신 시작`);
     
-    if (!shopData) {
-      throw new Error('쇼핑몰 정보를 찾을 수 없습니다.');
-    }
-
-    // OAuth 토큰 갱신만 지원
-    if (shopData.refresh_token) {
-      await this.refreshOAuthToken();
-    } else {
-      throw new Error('Refresh Token이 없습니다. OAuth 재인증이 필요합니다.');
-    }
-  }
-
-
-
-  /**
-   * OAuth Token 갱신
-   */
-  private async refreshOAuthToken(): Promise<void> {
     const refreshToken = await getStoredRefreshToken(this.mallId);
     
     if (!refreshToken) {
@@ -137,176 +126,97 @@ export class Cafe24Client {
       // 캐시 무효화
       this.tokenCache = null;
       
-      console.log('✅ OAuth 토큰 갱신 완료');
+      console.log(`✅ ${this.mallId}: OAuth 토큰 갱신 완료`);
+      console.log(`✅ ${this.mallId}: 토큰 만료 시간: ${new Date(Date.now() + (tokenData.expires_in * 1000)).toLocaleString('ko-KR')}`);
+      
     } catch (error) {
       this.handleTokenError(error, 'OAuth 토큰 갱신');
     }
   }
 
   /**
-   * 토큰 오류 처리
+   * 토큰 에러 처리
    */
   private handleTokenError(error: unknown, context: string): never {
+    console.error(`❌ ${this.mallId}: ${context} 실패:`, error);
+    
     if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError;
-      
-      if (axiosError.response?.status === 401) {
-        throw new Error(`${context} 실패: 인증 정보가 올바르지 않습니다.`);
-      } else if (axiosError.response?.status === 400) {
-        const errorData = axiosError.response.data as Record<string, unknown>;
+      if (error.response?.status === 401) {
+        throw new Error('인증 실패: 토큰이 유효하지 않습니다. 재인증이 필요합니다.');
+      } else if (error.response?.status === 400) {
+        const errorData = error.response.data;
         if (errorData?.error === 'invalid_grant') {
-          throw new Error(`${context} 실패: 유효하지 않은 Grant Type입니다.`);
+          throw new Error('Refresh Token이 만료되었습니다. 재인증이 필요합니다.');
+        } else {
+          throw new Error(`잘못된 요청: ${errorData?.error_description || '알 수 없는 오류'}`);
         }
-        throw new Error(`${context} 실패: ${errorData?.error_description || '잘못된 요청'}`);
       }
-      
-      throw new Error(`${context} 실패: ${axiosError.message}`);
     }
     
-    throw new Error(`${context} 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    throw new Error(`${context} 실패: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 
   /**
    * 인증된 API 요청
    */
-  private async makeAuthenticatedRequest<T>(
-    endpoint: string, 
-    options: ApiRequestOptions = { method: 'GET' }
-  ): Promise<T> {
-    const token = await this.ensureValidToken();
+  public async makeAuthenticatedRequest(
+    endpoint: string,
+    options: ApiRequestOptions = {}
+  ): Promise<AxiosResponse> {
+    const { method = 'GET', data, params, headers = {} } = options;
     
-    const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
-    
-    const config = {
-      method: options.method,
-      url,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'X-Cafe24-Api-Version': '2025-06-01',
-        ...options.headers
-      },
-      data: options.data,
-      params: options.params,
-      timeout: options.timeout || 30000
-    };
-
     try {
-      const response: AxiosResponse<T> = await axios(config);
+      const token = await this.ensureValidToken();
       
-      console.log(`📡 API 요청 성공: ${options.method} ${url}`);
-      console.log(`📊 응답 상태: ${response.status}`);
+      const config = {
+        method,
+        url: `${this.baseUrl}${endpoint}`,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        data,
+        params,
+        timeout: 30000
+      };
+
+      console.log(`📡 ${this.mallId}: API 요청 - ${method} ${endpoint}`);
       
-      return response.data;
+      const response = await axios(config);
+      
+      console.log(`✅ ${this.mallId}: API 응답 성공 - ${response.status}`);
+      return response;
+      
     } catch (error) {
-      // 401 오류 시 토큰 갱신 후 재시도
       if (axios.isAxiosError(error) && error.response?.status === 401) {
-        console.log('🔄 401 오류 발생, 토큰 갱신 후 재시도...');
+        console.log(`🔄 ${this.mallId}: 401 에러 - 토큰 갱신 후 재시도`);
         
-        // 캐시 무효화
-        this.tokenCache = null;
-        
-        // 토큰 갱신
+        // 토큰 갱신 후 재시도
         await this.refreshAccessToken();
-        
-        // 새 토큰으로 재시도
         const newToken = await this.ensureValidToken();
-        config.headers['Authorization'] = `Bearer ${newToken}`;
         
-        const retryResponse: AxiosResponse<T> = await axios(config);
-        return retryResponse.data;
+        const retryConfig = {
+          method,
+          url: `${this.baseUrl}${endpoint}`,
+          headers: {
+            'Authorization': `Bearer ${newToken}`,
+            'Content-Type': 'application/json',
+            ...headers
+          },
+          data,
+          params,
+          timeout: 30000
+        };
+        
+        const retryResponse = await axios(retryConfig);
+        console.log(`✅ ${this.mallId}: 재시도 성공 - ${retryResponse.status}`);
+        return retryResponse;
       }
       
-      this.handleApiError(error, `${options.method} ${url}`);
+      console.error(`❌ ${this.mallId}: API 요청 실패:`, error);
+      throw error;
     }
-  }
-
-  /**
-   * API 오류 처리
-   */
-  private handleApiError(error: unknown, context: string): never {
-    if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError;
-      
-      console.error(`❌ API 오류 (${context}):`, {
-        status: axiosError.response?.status,
-        statusText: axiosError.response?.statusText,
-        data: axiosError.response?.data
-      });
-      
-      const cafe24Error = new Error(
-        `API 요청 실패: ${axiosError.response?.statusText || axiosError.message}`
-      ) as Error & { statusCode?: number; response?: AxiosResponse };
-      cafe24Error.statusCode = axiosError.response?.status;
-      cafe24Error.response = axiosError.response;
-      
-      throw cafe24Error;
-    }
-    
-    throw new Error(`API 요청 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-  }
-
-  /**
-   * 게시글 목록 조회
-   */
-  public async getArticles(
-    boardNo: number = 1, 
-    limit: number = 10, 
-    offset: number = 0
-  ): Promise<{ articles: BoardArticle[] }> {
-    const response = await this.makeAuthenticatedRequest<{ articles: BoardArticle[] }>(
-      `/admin/boards/${boardNo}/articles`,
-      {
-        method: 'GET',
-        params: {
-          limit: limit.toString(),
-          offset: offset.toString(),
-          order_by: 'created_date',
-          order_direction: 'desc'
-        }
-      }
-    );
-
-    // 미답변 게시글만 필터링
-    const unansweredArticles = response.articles.filter(article => 
-      !article.article_comment_count || article.article_comment_count === 0
-    );
-
-    return {
-      articles: unansweredArticles
-    };
-  }
-
-  /**
-   * 게시글 상세 조회
-   */
-  public async getArticle(boardNo: number, articleNo: number): Promise<BoardArticle> {
-    return await this.makeAuthenticatedRequest<BoardArticle>(
-      `/admin/boards/${boardNo}/articles/${articleNo}`,
-      { method: 'GET' }
-    );
-  }
-
-  /**
-   * 댓글 등록
-   */
-  public async createComment(
-    boardNo: number, 
-    articleNo: number, 
-    content: string
-  ): Promise<BoardComment> {
-    const requestData = {
-      content: content,
-      created_date: new Date().toISOString().slice(0, 19).replace('T', ' ')
-    };
-
-    return await this.makeAuthenticatedRequest<BoardComment>(
-      `/admin/boards/${boardNo}/articles/${articleNo}/comments`,
-      {
-        method: 'POST',
-        data: requestData
-      }
-    );
   }
 
   /**
@@ -317,43 +227,94 @@ export class Cafe24Client {
   }
 
   /**
-   * 토큰 갱신 및 상태 확인 (스케줄러용)
+   * 게시글 조회
    */
-  public async checkAndRefreshToken(): Promise<void> {
-    const status = await this.checkTokenStatus();
-    
-    if (!status.valid) {
-      console.log(`⚠️ ${this.mallId}: 토큰이 유효하지 않습니다.`);
-      return;
-    }
-
-    if (status.needsRefresh) {
-      console.log(`🔄 ${this.mallId}: 토큰 갱신 필요 (${status.minutesLeft}분 남음)`);
-      await this.refreshAccessToken();
-    } else {
-      console.log(`✅ ${this.mallId}: 토큰 상태 양호 (${status.minutesLeft}분 남음)`);
+  public async getBoardArticles(boardNo: number, limit: number = 10): Promise<BoardArticle[]> {
+    try {
+      const response = await this.makeAuthenticatedRequest(
+        `/admin/boards/${boardNo}/articles`,
+                 {
+           method: 'GET',
+           params: { limit: limit.toString() }
+         }
+      );
+      
+      return response.data.articles || [];
+    } catch (error) {
+      console.error(`❌ ${this.mallId}: 게시글 조회 실패:`, error);
+      throw error;
     }
   }
 
   /**
-   * 헬스 체크 (API 연결 테스트)
+   * 게시글 생성
    */
-  public async healthCheck(): Promise<boolean> {
+  public async createBoardArticle(
+    boardNo: number,
+    articleData: Partial<BoardArticle>
+  ): Promise<BoardArticle> {
     try {
-      await this.makeAuthenticatedRequest('/admin/boards/1/articles', {
-        method: 'GET',
-        params: { limit: '1' }
-      });
-      return true;
+      const response = await this.makeAuthenticatedRequest(
+        `/admin/boards/${boardNo}/articles`,
+        {
+          method: 'POST',
+          data: { article: articleData }
+        }
+      );
+      
+      return response.data.article;
     } catch (error) {
-      console.error(`❌ ${this.mallId}: 헬스 체크 실패`, error);
-      return false;
+      console.error(`❌ ${this.mallId}: 게시글 생성 실패:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 댓글 조회
+   */
+  public async getBoardComments(boardNo: number, articleNo: number): Promise<BoardComment[]> {
+    try {
+      const response = await this.makeAuthenticatedRequest(
+        `/admin/boards/${boardNo}/articles/${articleNo}/comments`,
+        {
+          method: 'GET'
+        }
+      );
+      
+      return response.data.comments || [];
+    } catch (error) {
+      console.error(`❌ ${this.mallId}: 댓글 조회 실패:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 댓글 생성
+   */
+  public async createBoardComment(
+    boardNo: number,
+    articleNo: number,
+    commentData: Partial<BoardComment>
+  ): Promise<BoardComment> {
+    try {
+      const response = await this.makeAuthenticatedRequest(
+        `/admin/boards/${boardNo}/articles/${articleNo}/comments`,
+        {
+          method: 'POST',
+          data: { comment: commentData }
+        }
+      );
+      
+      return response.data.comment;
+    } catch (error) {
+      console.error(`❌ ${this.mallId}: 댓글 생성 실패:`, error);
+      throw error;
     }
   }
 }
 
 /**
- * 간편 팩토리 함수
+ * Cafe24Client 인스턴스 생성 헬퍼
  */
 export function createCafe24Client(mallId: string): Cafe24Client {
   return new Cafe24Client(mallId);

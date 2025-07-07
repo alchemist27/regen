@@ -2,133 +2,208 @@
 
 import { useState } from 'react';
 
+interface TokenStatus {
+  valid: boolean;
+  expires_at: number | null;
+  minutes_left: number;
+  needs_refresh: boolean;
+  error?: string;
+}
+
+interface TestResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+  details?: string;
+}
+
 function SimpleTestContent() {
   const [mallId, setMallId] = useState('cosmos2772');
-  const [result, setResult] = useState('');
+  const [tokenStatus, setTokenStatus] = useState<TokenStatus | null>(null);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const testTokenStatus = async () => {
+  const checkTokenStatus = async () => {
     setLoading(true);
-    setResult('🔄 OAuth 토큰 상태 확인 중...\n');
-    
     try {
-      // URL에서 토큰 정보 확인
-      const urlParams = new URLSearchParams(window.location.search);
-      const accessToken = urlParams.get('access_token');
-      const expiresAt = urlParams.get('expires_at');
+      const response = await fetch(`/api/token/status?mall_id=${mallId}`);
+      const result = await response.json();
       
-      let apiUrl = `/api/token/status?mall_id=${mallId}`;
-      
-      // URL 파라미터에 토큰 정보가 있으면 추가
-      if (accessToken && expiresAt) {
-        apiUrl += `&access_token=${encodeURIComponent(accessToken)}&expires_at=${encodeURIComponent(expiresAt)}`;
-        setResult(prev => prev + '📋 URL 파라미터에서 토큰 정보 발견\n');
-      }
-      
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setResult(prev => prev + '✅ 토큰 상태 확인 성공!\n' + JSON.stringify(data, null, 2));
+      if (result.success) {
+        setTokenStatus(result.data);
+        setTestResult({
+          success: true,
+          data: result.data
+        });
       } else {
-        setResult(prev => prev + '❌ 토큰 상태 확인 실패:\n' + JSON.stringify(data, null, 2));
+        setTestResult({
+          success: false,
+          error: result.error,
+          details: result.details
+        });
       }
     } catch (error) {
-      setResult(prev => prev + '❌ 네트워크 오류: ' + (error as Error).message);
+      setTestResult({
+        success: false,
+        error: '토큰 상태 확인 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const runTest = async () => {
+  const refreshToken = async () => {
     setLoading(true);
-    setResult('🚀 카페24 API 테스트 시작...\n\n');
-    
     try {
-      // 1. 토큰 상태 확인
-      setResult(prev => prev + '1️⃣ 토큰 상태 확인 중...\n');
+      const response = await fetch('/api/token/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mall_id: mallId }),
+      });
       
-      // URL에서 토큰 정보 확인
-      const urlParams = new URLSearchParams(window.location.search);
-      const accessToken = urlParams.get('access_token');
-      const expiresAt = urlParams.get('expires_at');
+      const result = await response.json();
       
-      let apiUrl = `/api/token/status?mall_id=${mallId}`;
-      
-      // URL 파라미터에 토큰 정보가 있으면 추가
-      if (accessToken && expiresAt) {
-        apiUrl += `&access_token=${encodeURIComponent(accessToken)}&expires_at=${encodeURIComponent(expiresAt)}`;
-        setResult(prev => prev + '📋 URL 파라미터에서 토큰 정보 사용\n');
-      }
-      
-      const tokenResponse = await fetch(apiUrl);
-      const tokenData = await tokenResponse.json();
-      
-      if (!tokenResponse.ok) {
-        setResult(prev => prev + '❌ 토큰 상태 확인 실패: ' + tokenData.error + '\n');
-        return;
-      }
-      
-      setResult(prev => prev + '✅ 토큰 상태 확인 성공\n\n');
-
-      // 2. 게시글 조회 테스트
-      setResult(prev => prev + '2️⃣ 게시글 조회 중...\n');
-      const articlesResponse = await fetch(`/api/cafe24/articles?mall_id=${mallId}&limit=5`);
-      const articlesData = await articlesResponse.json();
-      
-      if (articlesResponse.ok) {
-        setResult(prev => prev + `✅ 게시글 조회 성공 (${articlesData.data?.total_count || 0}개)\n\n`);
-        setResult(prev => prev + '🎉 모든 테스트 통과!\n');
+      if (result.success) {
+        setTestResult({
+          success: true,
+          data: result.data
+        });
+        // 갱신 후 상태 다시 확인
+        await checkTokenStatus();
       } else {
-        setResult(prev => prev + '❌ 게시글 조회 실패: ' + articlesData.error + '\n');
+        setTestResult({
+          success: false,
+          error: result.error,
+          details: result.details
+        });
       }
-      
     } catch (error) {
-      setResult(prev => prev + '❌ 테스트 중 오류: ' + (error as Error).message + '\n');
+      setTestResult({
+        success: false,
+        error: '토큰 갱신 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const testApiCall = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/cafe24/articles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          mall_id: mallId,
+          board_no: 1,
+          limit: 5
+        }),
+      });
+      
+      const result = await response.json();
+      setTestResult(result);
+    } catch (error) {
+      setTestResult({
+        success: false,
+        error: 'API 호출 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6 text-center">카페24 API 간단 테스트</h1>
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-8 text-center">카페24 OAuth 토큰 테스트</h1>
       
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">쇼핑몰 ID</label>
-          <input
-            type="text"
-            value={mallId}
-            onChange={(e) => setMallId(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="예: myshop"
-          />
-        </div>
-        
-        <div className="space-y-2">
-          <button
-            onClick={testTokenStatus}
-            disabled={loading}
-            className="w-full bg-orange-500 text-white py-3 px-4 rounded-md hover:bg-orange-600 disabled:bg-gray-400 font-medium"
-          >
-            {loading ? '테스트 진행 중...' : '🔧 OAuth 토큰 상태 확인'}
-          </button>
-          
-          <button
-            onClick={runTest}
-            disabled={loading}
-            className="w-full bg-blue-500 text-white py-3 px-4 rounded-md hover:bg-blue-600 disabled:bg-gray-400 font-medium"
-          >
-            {loading ? '테스트 진행 중...' : '🚀 전체 테스트 시작'}
-          </button>
-        </div>
+      <div className="mb-6">
+        <label className="block text-sm font-medium mb-2">쇼핑몰 ID</label>
+        <input
+          type="text"
+          value={mallId}
+          onChange={(e) => setMallId(e.target.value)}
+          className="w-full p-3 border rounded-lg"
+          placeholder="쇼핑몰 ID를 입력하세요"
+        />
       </div>
 
-      {result && (
-        <div className="bg-gray-50 rounded-lg p-4 border">
-          <h3 className="font-semibold mb-2">테스트 결과:</h3>
-          <pre className="text-sm whitespace-pre-wrap text-gray-700">{result}</pre>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <button
+          onClick={checkTokenStatus}
+          disabled={loading}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg disabled:opacity-50"
+        >
+          {loading ? '확인 중...' : '토큰 상태 확인'}
+        </button>
+        
+        <button
+          onClick={refreshToken}
+          disabled={loading}
+          className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg disabled:opacity-50"
+        >
+          {loading ? '갱신 중...' : '토큰 갱신'}
+        </button>
+        
+        <button
+          onClick={testApiCall}
+          disabled={loading}
+          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg disabled:opacity-50"
+        >
+          {loading ? '호출 중...' : 'API 테스트'}
+        </button>
+      </div>
+
+      {/* 토큰 상태 표시 */}
+      {tokenStatus && (
+        <div className={`mb-6 p-4 rounded-lg border ${
+          tokenStatus.valid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+        }`}>
+          <h3 className="font-semibold mb-2">
+            {tokenStatus.valid ? '✅ 토큰 유효' : '❌ 토큰 무효'}
+          </h3>
+          <div className="text-sm space-y-1">
+            <p><strong>만료 시간:</strong> {tokenStatus.expires_at ? new Date(tokenStatus.expires_at).toLocaleString('ko-KR') : 'N/A'}</p>
+            <p><strong>남은 시간:</strong> {tokenStatus.minutes_left}분</p>
+            <p><strong>갱신 필요:</strong> {tokenStatus.needs_refresh ? '예' : '아니오'}</p>
+            {tokenStatus.error && (
+              <p className="text-red-600"><strong>오류:</strong> {tokenStatus.error}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 테스트 결과 표시 */}
+      {testResult && (
+        <div className={`p-6 rounded-lg border ${
+          testResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+        }`}>
+          <h3 className="font-semibold mb-3">
+            {testResult.success ? '✅ 성공' : '❌ 실패'}
+          </h3>
+          
+          {testResult.success && testResult.data && (
+            <div className="bg-white p-4 rounded border">
+              <pre className="text-sm overflow-auto">
+                {JSON.stringify(testResult.data, null, 2)}
+              </pre>
+            </div>
+          )}
+          
+          {!testResult.success && (
+            <div className="space-y-2">
+              <p className="text-red-600 font-medium">{testResult.error}</p>
+              {testResult.details && (
+                <p className="text-red-500 text-sm">{testResult.details}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -139,6 +214,7 @@ function SimpleTestContent() {
           <li>토큰 유효기간 확인</li>
           <li>Firebase 저장 상태 확인</li>
           <li>게시글 조회 API 호출 테스트</li>
+          <li>토큰 자동 갱신 테스트</li>
         </ul>
       </div>
 
@@ -148,7 +224,8 @@ function SimpleTestContent() {
           <li>먼저 홈페이지에서 &quot;카페24 앱 설치&quot; 버튼으로 OAuth 인증 완료</li>
           <li>인증 완료 후 이 페이지에서 토큰 상태 확인</li>
           <li>권한: 게시판 읽기/쓰기 (mall.read_community, mall.write_community)</li>
-          <li>토큰은 자동으로 갱신됩니다</li>
+          <li>토큰은 자동으로 갱신됩니다 (만료 5분 전)</li>
+          <li>Firestore에 안전하게 저장됩니다</li>
         </ul>
       </div>
     </div>
@@ -156,9 +233,5 @@ function SimpleTestContent() {
 }
 
 export default function TestCafe24Page() {
-  return (
-    <div className="min-h-screen bg-gray-100">
-      <SimpleTestContent />
-    </div>
-  );
+  return <SimpleTestContent />;
 } 

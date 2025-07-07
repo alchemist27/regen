@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import { updateTokenData } from '@/lib/tokenStore';
+import { saveTokenData, updateTokenData } from '@/lib/tokenStore';
 import { saveServerShopData } from '@/lib/serverTokenStore';
 import { TokenData } from '@/lib/types';
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     // OAuth에서 mall_id는 state 파라미터로 전달됨
     const mallId = state;
     
-    console.log('OAuth 콜백 파라미터:', { 
+    console.log('🔄 OAuth 콜백 처리 시작:', { 
       code: code ? code.substring(0, 10) + '...' : null, 
       state, 
       mallId, 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // OAuth 에러 처리
     if (error) {
-      console.error('OAuth 인증 에러:', error);
+      console.error('❌ OAuth 인증 에러:', error);
       const errorUrl = new URL('/auth/error', request.url);
       errorUrl.searchParams.set('error', `OAuth 인증 실패: ${error}`);
       return NextResponse.redirect(errorUrl);
@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
 
     // 필수 파라미터 확인 (OAuth만)
     if (!mallId) {
+      console.error('❌ mall_id(state) 파라미터 누락');
       return NextResponse.json(
         { error: 'OAuth state 파라미터(mall_id)가 필요합니다.' },
         { status: 400 }
@@ -41,15 +42,15 @@ export async function GET(request: NextRequest) {
     
     // OAuth 인증 코드 확인
     if (!code) {
+      console.error('❌ OAuth 인증 코드 누락');
       return NextResponse.json(
         { error: 'OAuth 인증 코드가 필요합니다.' },
         { status: 400 }
       );
     }
-    let accessToken = '';
-    let refreshToken = '';
+
+    let tokenData: TokenData | null = null;
     let tokenError = '';
-    let expiresAt = '';
     
     try {
       // 환경변수에서 클라이언트 정보 가져오기
@@ -77,45 +78,34 @@ export async function GET(request: NextRequest) {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Authorization': `Basic ${credentials}`
-        }
+        },
+        timeout: 30000
       });
 
-      const tokenData: TokenData = tokenResponse.data;
-      accessToken = tokenData.access_token;
-      refreshToken = tokenData.refresh_token || '';
-      const expiresIn = tokenData.expires_in;
-      
-      // 만료 시간 계산 (안전한 날짜 처리)
-      try {
-        const expiresAtTimestamp = Date.now() + (expiresIn * 1000);
-        const expiresAtDate = new Date(expiresAtTimestamp);
-        
-        // 유효한 날짜인지 확인
-        if (isNaN(expiresAtDate.getTime())) {
-          throw new Error('Invalid expiration date');
-        }
-        
-        expiresAt = expiresAtDate.toISOString();
-      } catch (dateError) {
-        console.warn('만료 시간 계산 오류:', dateError);
-        // 기본값으로 2시간 후 설정
-        const fallbackDate = new Date(Date.now() + (7200 * 1000));
-        expiresAt = fallbackDate.toISOString();
+      tokenData = tokenResponse.data;
+      if (tokenData) {
+        console.log('✅ OAuth 토큰 발급 성공:', {
+          mallId,
+          hasAccessToken: !!tokenData.access_token,
+          hasRefreshToken: !!tokenData.refresh_token,
+          expiresIn: tokenData.expires_in
+        });
       }
-      
-      // 새로운 토큰 저장 시스템 사용 (Firestore 저장 포함)
-      await updateTokenData(mallId, tokenData);
-      
-      console.log('✅ OAuth 토큰 교환 및 저장 성공:', {
-        mall_id: mallId,
-        token_type: tokenData.token_type,
-        expires_in: expiresIn,
-        expires_at: expiresAt,
-        has_refresh_token: !!refreshToken
-      });
+
+      // 새로운 토큰 저장 시스템 사용
+      if (tokenData) {
+        await saveTokenData(mallId, tokenData, {
+          userId: 'oauth_user',
+          userName: 'OAuth 사용자',
+          userType: 'oauth'
+        });
+      }
+
+      console.log('✅ Firestore 토큰 저장 완료');
 
     } catch (error) {
-      console.error('토큰 발급 실패:', error);
+      console.error('❌ 토큰 발급 실패:', error);
+      
       if (axios.isAxiosError(error)) {
         console.error('응답 데이터:', error.response?.data);
         console.error('응답 상태:', error.response?.status);
@@ -149,16 +139,16 @@ export async function GET(request: NextRequest) {
       user_type: 'oauth',
       timestamp: Date.now().toString(),
       hmac: '',
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      token_type: 'Bearer',
-      expires_in: 7200,
-      expires_at: expiresAt,
+      access_token: tokenData?.access_token || '',
+      refresh_token: tokenData?.refresh_token || '',
+      token_type: tokenData?.token_type || 'Bearer',
+      expires_in: tokenData?.expires_in || 7200,
+      expires_at: tokenData ? new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString() : '',
       token_error: tokenError,
       installed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       last_refresh_at: new Date().toISOString(),
-      status: (accessToken ? 'ready' : 'error') as 'ready' | 'error',
+      status: (tokenData ? 'ready' : 'error') as 'ready' | 'error',
       app_type: 'oauth' as const,
       auth_code: code,
       client_id: process.env.CAFE24_CLIENT_ID || '',
@@ -172,24 +162,25 @@ export async function GET(request: NextRequest) {
     const redirectUrl = new URL('/auth/success', request.url);
     redirectUrl.searchParams.set('mall_id', mallId);
     redirectUrl.searchParams.set('user_name', 'OAuth 사용자');
-    redirectUrl.searchParams.set('ready', accessToken ? 'true' : 'false');
+    redirectUrl.searchParams.set('ready', tokenData ? 'true' : 'false');
     redirectUrl.searchParams.set('app_type', 'oauth');
     
     // 토큰 정보 추가 (토큰 상태 확인에 사용)
-    if (accessToken && expiresAt) {
-      redirectUrl.searchParams.set('access_token', accessToken);
-      redirectUrl.searchParams.set('expires_at', expiresAt);
+    if (tokenData && tokenData.access_token) {
+      redirectUrl.searchParams.set('access_token', tokenData.access_token);
+      redirectUrl.searchParams.set('expires_at', shopData.expires_at);
     }
     
     // 토큰 발급 실패 시에만 오류 메시지 포함
-    if (tokenError && !accessToken) {
+    if (tokenError && !tokenData) {
       redirectUrl.searchParams.set('error', tokenError);
     }
     
+    console.log('🔄 성공 페이지로 리다이렉트:', redirectUrl.toString());
     return NextResponse.redirect(redirectUrl);
 
-  } catch (error: unknown) {
-    console.error('카페24 OAuth 콜백 오류:', error);
+  } catch (error) {
+    console.error('❌ 카페24 OAuth 콜백 오류:', error);
     
     const errorUrl = new URL('/auth/error', request.url);
     errorUrl.searchParams.set('error', error instanceof Error ? error.message : 'Unknown error');
@@ -234,13 +225,18 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': `Basic ${credentials}`
-      }
+      },
+      timeout: 30000
     });
 
     const tokenData = tokenResponse.data;
     
     // 새로운 토큰 저장 시스템 사용
-    await updateTokenData(mallId, tokenData);
+    await saveTokenData(mallId, tokenData, {
+      userId: 'oauth_user',
+      userName: 'OAuth 사용자',
+      userType: 'oauth'
+    });
 
     return NextResponse.json({
       success: true,
@@ -254,8 +250,8 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: unknown) {
-    console.error('OAuth 토큰 발급 오류:', error);
+  } catch (error) {
+    console.error('❌ OAuth 토큰 발급 오류:', error);
     
     let errorMessage = 'OAuth 토큰 발급 중 오류가 발생했습니다.';
     

@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { initializeApp as initializeAdminApp, getApps as getAdminApps, cert } from 'firebase-admin/app';
 import { getFirestore as getAdminFirestore, Firestore as AdminFirestore } from 'firebase-admin/firestore';
 
@@ -38,9 +39,10 @@ function validateFirebaseConfig() {
 }
 
 // 환경변수 검증
+let isConfigValid = false;
 try {
-  validateFirebaseConfig();
-} catch {
+  isConfigValid = validateFirebaseConfig();
+} catch (error) {
   // 에러 무시
 }
 
@@ -58,6 +60,7 @@ const firebaseConfig = {
 let app;
 let db: Firestore | null = null;
 let auth: ReturnType<typeof getAuth> | null = null;
+let storage: FirebaseStorage | null = null;
 
 try {
   if (getApps().length === 0) {
@@ -71,12 +74,14 @@ try {
   // 서비스 초기화 (환경변수 상태와 관계없이)
   db = getFirestore(app);
   auth = getAuth(app);
+  storage = getStorage(app);
   console.log('🔥 Firebase 서비스 초기화 완료');
 } catch (error: unknown) {
   console.error('❌ Firebase 초기화 실패:', error);
 }
 
-export { db, auth };
+export { db, auth, storage };
+export default app;
 
 // Admin SDK 초기화 (서버 사이드에서만 사용)
 let adminDb: AdminFirestore | null = null;
@@ -140,6 +145,4 @@ export function getAdminDb(): AdminFirestore | null {
   }
   
   return null;
-}
-
-export default app; 
+} 

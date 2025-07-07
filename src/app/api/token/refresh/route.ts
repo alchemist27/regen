@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCafe24Client } from '@/lib/cafe24Client';
-import { getShopData } from '@/lib/tokenStore';
-import { RefreshTokenResponse } from '@/lib/types';
+import { checkTokenStatus } from '@/lib/tokenStore';
 
 /**
  * 토큰 갱신 API
@@ -9,7 +8,8 @@ import { RefreshTokenResponse } from '@/lib/types';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { mall_id } = await request.json();
+    const body = await request.json();
+    const { mall_id } = body;
 
     if (!mall_id) {
       return NextResponse.json(
@@ -21,246 +21,196 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 쇼핑몰 정보 확인
-    const shopData = await getShopData(mall_id);
-    if (!shopData) {
+    console.log(`🔄 토큰 갱신 요청: ${mall_id}`);
+
+    // 현재 토큰 상태 확인
+    const currentStatus = await checkTokenStatus(mall_id);
+    
+    if (!currentStatus.valid && !currentStatus.expiresAt) {
       return NextResponse.json(
         { 
           success: false,
-          error: '쇼핑몰 정보를 찾을 수 없습니다.' 
+          error: '갱신할 토큰이 없습니다. 재인증이 필요합니다.',
+          suggestion: 'OAuth 앱을 다시 설치해주세요.'
         },
         { status: 404 }
       );
     }
 
-    // 카페24 클라이언트 생성
+    // Cafe24 클라이언트로 토큰 갱신
     const client = createCafe24Client(mall_id);
-
-    // 토큰 갱신 실행
-    await client.refreshAccessToken();
-
-    // 갱신된 토큰 정보 조회
-    const updatedShopData = await getShopData(mall_id);
-    if (!updatedShopData) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: '갱신된 토큰 정보를 조회할 수 없습니다.' 
-        },
-        { status: 500 }
-      );
-    }
-
-    const response: RefreshTokenResponse = {
-      success: true,
-      access_token: updatedShopData.access_token ? 
-        updatedShopData.access_token.substring(0, 10) + '...' : undefined,
-      expires_in: updatedShopData.expires_in,
-      expires_at: updatedShopData.expires_at ? 
-        new Date(updatedShopData.expires_at).getTime() : undefined
-    };
-
-    console.log(`✅ 토큰 갱신 성공: ${mall_id}`);
-
-    return NextResponse.json(response);
-
-  } catch (error: unknown) {
-    console.error('토큰 갱신 오류:', error);
     
-    let errorMessage = '토큰 갱신 중 오류가 발생했습니다.';
-    
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-
-    const response: RefreshTokenResponse = {
-      success: false,
-      error: errorMessage
-    };
-
-    return NextResponse.json(response, { status: 500 });
-  }
-}
-
-/**
- * 수동 토큰 갱신 (쿼리 파라미터 사용)
- * GET /api/token/refresh?mall_id=xxx
- */
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const mall_id = searchParams.get('mall_id');
-
-    if (!mall_id) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: 'mall_id가 필요합니다.' 
-        },
-        { status: 400 }
-      );
-    }
-
-    // 쇼핑몰 정보 확인
-    const shopData = await getShopData(mall_id);
-    if (!shopData) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: '쇼핑몰 정보를 찾을 수 없습니다.' 
-        },
-        { status: 404 }
-      );
-    }
-
-    // 카페24 클라이언트 생성
-    const client = createCafe24Client(mall_id);
-
-    // 토큰 상태 확인
-    const tokenStatus = await client.checkTokenStatus();
-    
-    if (!tokenStatus.valid) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: '토큰이 유효하지 않습니다. 재인증이 필요합니다.' 
-        },
-        { status: 401 }
-      );
-    }
-
-    // 갱신이 필요한 경우에만 갱신
-    if (tokenStatus.needsRefresh) {
+    try {
       await client.refreshAccessToken();
       
-      // 갱신된 토큰 정보 조회
-      const updatedShopData = await getShopData(mall_id);
+      // 갱신 후 상태 확인
+      const newStatus = await checkTokenStatus(mall_id);
       
-      const response: RefreshTokenResponse = {
-        success: true,
-        access_token: updatedShopData?.access_token ? 
-          updatedShopData.access_token.substring(0, 10) + '...' : undefined,
-        expires_in: updatedShopData?.expires_in,
-        expires_at: updatedShopData?.expires_at ? 
-          new Date(updatedShopData.expires_at).getTime() : undefined
-      };
+      console.log(`✅ 토큰 갱신 완료: ${mall_id}`, {
+        valid: newStatus.valid,
+        minutesLeft: newStatus.minutesLeft,
+        needsRefresh: newStatus.needsRefresh
+      });
 
-      console.log(`✅ 토큰 갱신 성공: ${mall_id}`);
-      return NextResponse.json(response);
-    } else {
-      // 갱신 불필요
       return NextResponse.json({
         success: true,
-        message: '토큰 갱신이 필요하지 않습니다.',
-        expires_at: tokenStatus.expiresAt,
-        minutes_left: tokenStatus.minutesLeft
-      });
-    }
-
-  } catch (error: unknown) {
-    console.error('토큰 갱신 오류:', error);
-    
-    let errorMessage = '토큰 갱신 중 오류가 발생했습니다.';
-    
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-
-    const response: RefreshTokenResponse = {
-      success: false,
-      error: errorMessage
-    };
-
-    return NextResponse.json(response, { status: 500 });
-  }
-}
-
-/**
- * 모든 쇼핑몰 토큰 일괄 갱신 (관리자용)
- * PUT /api/token/refresh
- */
-export async function PUT(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const adminKey = searchParams.get('admin_key');
-
-    // 관리자 키 확인 (보안)
-    if (adminKey !== process.env.ADMIN_API_KEY) {
-      return NextResponse.json(
-        { error: '관리자 권한이 필요합니다.' },
-        { status: 403 }
-      );
-    }
-
-    // 모든 쇼핑몰 데이터 조회
-    const { getAdminDb } = await import('@/lib/firebase');
-    const adminDb = getAdminDb();
-    
-    if (!adminDb) {
-      return NextResponse.json(
-        { error: 'Firebase 연결 실패' },
-        { status: 500 }
-      );
-    }
-
-    const shopsSnapshot = await adminDb.collection('shops').get();
-    const results = [];
-
-    for (const doc of shopsSnapshot.docs) {
-      const shopData = doc.data();
-      const mallId = shopData.mall_id;
-
-      try {
-        const client = createCafe24Client(mallId);
-        const tokenStatus = await client.checkTokenStatus();
-
-        if (tokenStatus.valid && tokenStatus.needsRefresh) {
-          await client.refreshAccessToken();
-          results.push({
-            mall_id: mallId,
-            status: 'refreshed',
-            message: '토큰 갱신 완료'
-          });
-        } else if (tokenStatus.valid) {
-          results.push({
-            mall_id: mallId,
-            status: 'skipped',
-            message: '갱신 불필요',
-            minutes_left: tokenStatus.minutesLeft
-          });
-        } else {
-          results.push({
-            mall_id: mallId,
-            status: 'error',
-            message: '토큰 무효'
-          });
+        message: '토큰이 성공적으로 갱신되었습니다.',
+        data: {
+          mall_id: mall_id,
+          valid: newStatus.valid,
+          expires_at: newStatus.expiresAt,
+          minutes_left: newStatus.minutesLeft,
+          needs_refresh: newStatus.needsRefresh,
+          refreshed_at: new Date().toISOString()
         }
-      } catch (error) {
-        results.push({
-          mall_id: mallId,
-          status: 'error',
-          message: error instanceof Error ? error.message : '알 수 없는 오류'
-        });
+      });
+
+    } catch (refreshError) {
+      console.error(`❌ 토큰 갱신 실패: ${mall_id}`, refreshError);
+      
+      let errorMessage = '토큰 갱신에 실패했습니다.';
+      
+      if (refreshError instanceof Error) {
+        if (refreshError.message.includes('Refresh Token이 없습니다')) {
+          errorMessage = 'Refresh Token이 없습니다. 재인증이 필요합니다.';
+        } else if (refreshError.message.includes('만료되었습니다')) {
+          errorMessage = 'Refresh Token이 만료되었습니다. 재인증이 필요합니다.';
+        } else if (refreshError.message.includes('재인증이 필요합니다')) {
+          errorMessage = refreshError.message;
+        }
       }
+      
+      return NextResponse.json(
+        { 
+          success: false,
+          error: errorMessage,
+          details: refreshError instanceof Error ? refreshError.message : 'Unknown error',
+          suggestion: '메인 페이지에서 OAuth 앱을 다시 설치해주세요.'
+        },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({
-      success: true,
-      message: '일괄 토큰 갱신 완료',
-      results: results,
-      total_shops: results.length,
-      refreshed_count: results.filter(r => r.status === 'refreshed').length,
-      skipped_count: results.filter(r => r.status === 'skipped').length,
-      error_count: results.filter(r => r.status === 'error').length
-    });
-
-  } catch (error: unknown) {
-    console.error('일괄 토큰 갱신 오류:', error);
+  } catch (error) {
+    console.error('❌ 토큰 갱신 API 오류:', error);
     
     return NextResponse.json(
       { 
         success: false,
-        error: error instanceof Error ? error.message : '일괄 갱신 중 오류 발생'
+        error: '토큰 갱신 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * 여러 쇼핑몰 토큰 일괄 갱신
+ * PUT /api/token/refresh
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { mall_ids } = body;
+
+    if (!mall_ids || !Array.isArray(mall_ids)) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'mall_ids 배열이 필요합니다.' 
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log(`🔄 일괄 토큰 갱신 요청: ${mall_ids.length}개 쇼핑몰`);
+
+    const results = [];
+
+    for (const mall_id of mall_ids) {
+      try {
+        // 현재 토큰 상태 확인
+        const currentStatus = await checkTokenStatus(mall_id);
+        
+        if (!currentStatus.valid && !currentStatus.expiresAt) {
+          results.push({
+            mall_id: mall_id,
+            success: false,
+            error: '갱신할 토큰이 없습니다. 재인증이 필요합니다.',
+            action: 'skip'
+          });
+          continue;
+        }
+
+        // 갱신이 필요한 경우만 갱신
+        if (currentStatus.needsRefresh || !currentStatus.valid) {
+          console.log(`🔄 토큰 갱신 시작: ${mall_id}`);
+          
+          const client = createCafe24Client(mall_id);
+          await client.refreshAccessToken();
+          
+          // 갱신 후 상태 확인
+          const newStatus = await checkTokenStatus(mall_id);
+          
+          results.push({
+            mall_id: mall_id,
+            success: true,
+            valid: newStatus.valid,
+            expires_at: newStatus.expiresAt,
+            minutes_left: newStatus.minutesLeft,
+            needs_refresh: newStatus.needsRefresh,
+            action: 'refreshed',
+            refreshed_at: new Date().toISOString()
+          });
+        } else {
+          results.push({
+            mall_id: mall_id,
+            success: true,
+            valid: currentStatus.valid,
+            expires_at: currentStatus.expiresAt,
+            minutes_left: currentStatus.minutesLeft,
+            needs_refresh: currentStatus.needsRefresh,
+            action: 'skipped_valid',
+            message: '토큰이 아직 유효합니다.'
+          });
+        }
+
+      } catch (error) {
+        results.push({
+          mall_id: mall_id,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          action: 'failed'
+        });
+      }
+    }
+
+    const summary = {
+      total_count: results.length,
+      success_count: results.filter(r => r.success).length,
+      error_count: results.filter(r => !r.success).length,
+      refreshed_count: results.filter(r => r.action === 'refreshed').length,
+      skipped_count: results.filter(r => r.action === 'skipped_valid').length
+    };
+
+    console.log(`📊 일괄 토큰 갱신 완료:`, summary);
+
+    return NextResponse.json({
+      success: true,
+      summary: summary,
+      results: results,
+      processed_at: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ 일괄 토큰 갱신 실패:', error);
+    
+    return NextResponse.json(
+      { 
+        success: false,
+        error: '일괄 토큰 갱신 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );
