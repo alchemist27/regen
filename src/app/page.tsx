@@ -1,11 +1,10 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 function HomeContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const [authStatus, setAuthStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [authMessage, setAuthMessage] = useState('');
   const [mallId, setMallId] = useState('');
@@ -30,10 +29,15 @@ function HomeContent() {
 
   const handleDirectAuth = async (
     mallId: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     userId: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     userName?: string | null,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     userType?: string | null,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     timestamp?: string | null,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     hmac?: string | null
   ) => {
     setAuthStatus('processing');
@@ -153,7 +157,7 @@ function HomeContent() {
           <div className="mt-12 p-6 bg-blue-50 rounded-lg border border-blue-200">
             <h3 className="text-lg font-semibold text-blue-900 mb-3">🚀 OAuth 앱 설치 안내</h3>
             <div className="text-sm text-blue-800 space-y-2">
-              <p><strong>설치 방법:</strong> 카페24 앱스토어에서 설치하거나 위의 "카페24 앱 설치" 버튼을 클릭하여 OAuth 인증을 진행하세요</p>
+              <p><strong>설치 방법:</strong> 카페24 앱스토어에서 설치하거나 위의 &quot;카페24 앱 설치&quot; 버튼을 클릭하여 OAuth 인증을 진행하세요</p>
               <p><strong>필요 권한:</strong> 게시판 읽기/쓰기 (mall.read_community, mall.write_community)</p>
               <p><strong>지원 기능:</strong></p>
               <ul className="list-disc list-inside ml-4 space-y-1">
