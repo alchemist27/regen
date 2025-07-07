@@ -60,14 +60,16 @@ export async function saveTokenData(
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token || '',
       token_type: tokenData.token_type || 'Bearer',
-      expires_in: tokenData.expires_in,
+      expires_in: expiresIn,
       expires_at: expiresAt.toISOString(),
       scope: tokenData.scope || 'mall.read_community,mall.write_community',
       created_at: now.toISOString(),
       updated_at: now.toISOString()
     };
 
+    console.log('💾 Firestore 토큰 저장 시도:', mallId);
     await setDoc(tokenDocRef, tokenDoc);
+    console.log('✅ Firestore 토큰 저장 성공:', mallId);
 
     // 쇼핑몰 정보 컬렉션에 저장
     const shopDocRef = doc(db, SHOPS_COLLECTION, mallId);
@@ -79,7 +81,7 @@ export async function saveTokenData(
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token || '',
       token_type: tokenData.token_type || 'Bearer',
-      expires_in: tokenData.expires_in,
+      expires_in: expiresIn,
       expires_at: expiresAt.toISOString(),
       scope: tokenData.scope || 'mall.read_community,mall.write_community',
       status: 'ready' as const,
@@ -90,13 +92,24 @@ export async function saveTokenData(
       last_refresh_at: now.toISOString()
     };
 
+    console.log('💾 Firestore 쇼핑몰 정보 저장 시도:', mallId);
     await setDoc(shopDocRef, shopDoc, { merge: true });
+    console.log('✅ Firestore 쇼핑몰 정보 저장 성공:', mallId);
 
     console.log(`✅ 토큰 데이터 저장 완료: ${mallId}`);
     console.log(`✅ 토큰 만료 시간: ${expiresAt.toLocaleString('ko-KR')}`);
 
   } catch (error) {
     console.error('❌ 토큰 저장 실패:', error);
+    
+    // 권한 에러 처리
+    if (error && typeof error === 'object' && 'code' in error) {
+      if (error.code === 'permission-denied') {
+        console.error('❌ Firestore 권한 부족 - 보안 규칙을 확인하세요');
+        throw new Error('Firestore 권한이 없습니다. 보안 규칙을 확인하세요.');
+      }
+    }
+    
     throw new Error(`토큰 저장 실패: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
