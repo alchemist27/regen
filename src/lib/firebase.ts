@@ -39,10 +39,9 @@ function validateFirebaseConfig() {
 }
 
 // 환경변수 검증
-let isConfigValid = false;
 try {
-  isConfigValid = validateFirebaseConfig();
-} catch (error) {
+  validateFirebaseConfig();
+} catch {
   // 에러 무시
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import { saveTokenData, updateTokenData } from '@/lib/tokenStore';
+import { saveTokenData } from '@/lib/tokenStore';
 import { saveServerShopData } from '@/lib/serverTokenStore';
 import { TokenData } from '@/lib/types';
 

@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const client = createCafe24Client(mallId);
     
     // 댓글 등록 (자동 토큰 갱신 포함)
-    const commentResponse = await client.createComment(boardNo, articleNo, content);
+    const commentResponse = await client.createBoardComment(boardNo, articleNo, { comment_content: content });
 
     const responseData = {
       success: true,

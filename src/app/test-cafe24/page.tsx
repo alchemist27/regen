@@ -12,7 +12,7 @@ interface TokenStatus {
 
 interface TestResult {
   success: boolean;
-  data?: any;
+  data?: Record<string, unknown>;
   error?: string;
   details?: string;
 }

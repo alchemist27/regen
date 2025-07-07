@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
     const client = createCafe24Client(mallId);
     
     // 게시글 조회 (자동 토큰 갱신 포함)
-    const articlesResponse = await client.getArticles(boardNo, limit, 0);
+    const articles = await client.getBoardArticles(boardNo, limit);
+    const articlesResponse = { articles };
 
     const responseData = {
       success: true,

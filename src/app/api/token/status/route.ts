@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createCafe24Client } from '@/lib/cafe24Client';
-import { getShopData, checkTokenStatus } from '@/lib/tokenStore';
-import { getServerShopData, checkServerTokenStatus } from '@/lib/serverTokenStore';
-import { getShopDataViaRest } from '@/lib/firestoreRest';
+import { checkTokenStatus } from '@/lib/tokenStore';
 
 /**
  * 안전한 날짜 포맷팅 함수

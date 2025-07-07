@@ -1,9 +1,8 @@
-import axios, { AxiosResponse, AxiosError } from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import { 
   getStoredAccessToken, 
   getStoredRefreshToken, 
   updateTokenData, 
-  getShopData,
   checkTokenStatus 
 } from './tokenStore';
 import { 
@@ -233,10 +232,10 @@ export class Cafe24Client {
     try {
       const response = await this.makeAuthenticatedRequest(
         `/admin/boards/${boardNo}/articles`,
-                 {
-           method: 'GET',
-           params: { limit: limit.toString() }
-         }
+        {
+          method: 'GET',
+          params: { limit: limit.toString() }
+        }
       );
       
       return response.data.articles || [];
@@ -319,16 +318,3 @@ export class Cafe24Client {
 export function createCafe24Client(mallId: string): Cafe24Client {
   return new Cafe24Client(mallId);
 }
-
-/**
- * 여러 쇼핑몰 클라이언트 생성
- */
-export function createMultipleClients(mallIds: string[]): Map<string, Cafe24Client> {
-  const clients = new Map<string, Cafe24Client>();
-  
-  for (const mallId of mallIds) {
-    clients.set(mallId, new Cafe24Client(mallId));
-  }
-  
-  return clients;
-} 
