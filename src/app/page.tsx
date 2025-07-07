@@ -19,13 +19,21 @@ function HomeContent() {
     const timestampParam = searchParams.get('timestamp');
     const hmacParam = searchParams.get('hmac');
 
-    if (mallIdParam && userIdParam) {
+    // 이미 처리 중이거나 처리 완료된 경우 무시
+    if (authStatus !== 'idle') {
+      return;
+    }
+
+    // 카페24 앱 설치 파라미터가 있는 경우에만 자동 인증 처리
+    if (mallIdParam && userIdParam && hmacParam) {
+      console.log('카페24 앱 설치 파라미터 감지:', { mallIdParam, userIdParam, userNameParam });
+      
       // 카페24 앱 설치 파라미터가 있는 경우 자동 인증 처리
       setMallId(mallIdParam);
       setUserName(userNameParam ? decodeURIComponent(userNameParam) : '');
       handleDirectAuth(mallIdParam, userIdParam, userNameParam, userTypeParam, timestampParam, hmacParam);
     }
-  }, [searchParams]);
+  }, [searchParams, authStatus]);
 
   const handleDirectAuth = async (
     mallId: string,
@@ -62,8 +70,24 @@ function HomeContent() {
       // 상태 업데이트
       setAuthMessage('카페24 OAuth 인증 페이지로 이동합니다...');
       
-      // 짧은 지연 후 리다이렉트
+      // URL 파라미터 정리 후 리다이렉트
       setTimeout(() => {
+        // 현재 URL에서 카페24 앱 설치 파라미터 제거
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('mall_id');
+        cleanUrl.searchParams.delete('user_id');
+        cleanUrl.searchParams.delete('user_name');
+        cleanUrl.searchParams.delete('user_type');
+        cleanUrl.searchParams.delete('timestamp');
+        cleanUrl.searchParams.delete('hmac');
+        cleanUrl.searchParams.delete('lang');
+        cleanUrl.searchParams.delete('nation');
+        cleanUrl.searchParams.delete('shop_no');
+        
+        // 브라우저 히스토리에 깨끗한 URL 저장
+        window.history.replaceState({}, '', cleanUrl.toString());
+        
+        // OAuth 인증 페이지로 리다이렉트
         window.location.href = authUrl;
       }, 1000);
 

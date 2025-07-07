@@ -104,10 +104,10 @@ export async function GET(request: NextRequest) {
         expiresAt = fallbackDate.toISOString();
       }
       
-      // 새로운 토큰 저장 시스템 사용
+      // 새로운 토큰 저장 시스템 사용 (Firestore 저장 포함)
       await updateTokenData(mallId, tokenData);
       
-      console.log('✅ OAuth 토큰 교환 성공:', {
+      console.log('✅ OAuth 토큰 교환 및 저장 성공:', {
         mall_id: mallId,
         token_type: tokenData.token_type,
         expires_in: expiresIn,
@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 쇼핑몰 정보 저장 (OAuth만)
+    // 서버 메모리에 임시 저장 (즉시 사용 가능)
     const shopData = {
       mall_id: mallId,
       user_id: 'oauth_user',
@@ -168,28 +168,6 @@ export async function GET(request: NextRequest) {
 
     // 서버 메모리에 토큰 저장 (즉시 사용 가능)
     saveServerShopData(mallId, shopData);
-
-    // Firestore REST API로 영구 저장 시도
-    try {
-      const restSaved = await saveShopDataViaRest(mallId, shopData);
-      if (restSaved) {
-        console.log('✅ Firestore REST API로 쇼핑몰 정보 저장 완료:', mallId);
-      } else {
-        console.warn('⚠️ Firestore REST API 저장 실패, Client SDK 시도');
-        
-        // REST API 실패 시 Client SDK 시도
-        const { db } = await import('@/lib/firebase');
-        if (db) {
-          const { doc, setDoc } = await import('firebase/firestore');
-          const shopRef = doc(db, 'shops', mallId);
-          await setDoc(shopRef, shopData);
-          console.log('✅ Firestore Client SDK로 쇼핑몰 정보 저장 완료:', mallId);
-        }
-      }
-    } catch (saveError) {
-      console.warn('⚠️ 모든 Firestore 저장 방식 실패:', saveError);
-      // 저장 실패해도 서버 메모리에는 저장되었으므로 계속 진행
-    }
 
     // 성공 페이지로 리다이렉트
     const redirectUrl = new URL('/auth/success', request.url);
