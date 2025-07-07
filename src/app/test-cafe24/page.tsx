@@ -12,7 +12,20 @@ function SimpleTestContent() {
     setResult('🔄 OAuth 토큰 상태 확인 중...\n');
     
     try {
-      const response = await fetch(`/api/token/status?mall_id=${mallId}`);
+      // URL에서 토큰 정보 확인
+      const urlParams = new URLSearchParams(window.location.search);
+      const accessToken = urlParams.get('access_token');
+      const expiresAt = urlParams.get('expires_at');
+      
+      let apiUrl = `/api/token/status?mall_id=${mallId}`;
+      
+      // URL 파라미터에 토큰 정보가 있으면 추가
+      if (accessToken && expiresAt) {
+        apiUrl += `&access_token=${encodeURIComponent(accessToken)}&expires_at=${encodeURIComponent(expiresAt)}`;
+        setResult(prev => prev + '📋 URL 파라미터에서 토큰 정보 발견\n');
+      }
+      
+      const response = await fetch(apiUrl);
       const data = await response.json();
       
       if (response.ok) {
@@ -34,7 +47,21 @@ function SimpleTestContent() {
     try {
       // 1. 토큰 상태 확인
       setResult(prev => prev + '1️⃣ 토큰 상태 확인 중...\n');
-      const tokenResponse = await fetch(`/api/token/status?mall_id=${mallId}`);
+      
+      // URL에서 토큰 정보 확인
+      const urlParams = new URLSearchParams(window.location.search);
+      const accessToken = urlParams.get('access_token');
+      const expiresAt = urlParams.get('expires_at');
+      
+      let apiUrl = `/api/token/status?mall_id=${mallId}`;
+      
+      // URL 파라미터에 토큰 정보가 있으면 추가
+      if (accessToken && expiresAt) {
+        apiUrl += `&access_token=${encodeURIComponent(accessToken)}&expires_at=${encodeURIComponent(expiresAt)}`;
+        setResult(prev => prev + '📋 URL 파라미터에서 토큰 정보 사용\n');
+      }
+      
+      const tokenResponse = await fetch(apiUrl);
       const tokenData = await tokenResponse.json();
       
       if (!tokenResponse.ok) {

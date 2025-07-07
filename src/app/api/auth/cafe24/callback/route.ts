@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import { getAdminDb } from '@/lib/firebase';
 import { updateTokenData } from '@/lib/tokenStore';
+import { saveServerShopData } from '@/lib/serverTokenStore';
+import { saveShopDataViaRest } from '@/lib/firestoreRest';
 import { TokenData } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
@@ -85,9 +86,23 @@ export async function GET(request: NextRequest) {
       refreshToken = tokenData.refresh_token || '';
       const expiresIn = tokenData.expires_in;
       
-      // 만료 시간 계산
-      const expiresAtDate = new Date(Date.now() + (expiresIn * 1000));
-      expiresAt = expiresAtDate.toISOString();
+      // 만료 시간 계산 (안전한 날짜 처리)
+      try {
+        const expiresAtTimestamp = Date.now() + (expiresIn * 1000);
+        const expiresAtDate = new Date(expiresAtTimestamp);
+        
+        // 유효한 날짜인지 확인
+        if (isNaN(expiresAtDate.getTime())) {
+          throw new Error('Invalid expiration date');
+        }
+        
+        expiresAt = expiresAtDate.toISOString();
+      } catch (dateError) {
+        console.warn('만료 시간 계산 오류:', dateError);
+        // 기본값으로 2시간 후 설정
+        const fallbackDate = new Date(Date.now() + (7200 * 1000));
+        expiresAt = fallbackDate.toISOString();
+      }
       
       // 새로운 토큰 저장 시스템 사용
       await updateTokenData(mallId, tokenData);
@@ -137,19 +152,43 @@ export async function GET(request: NextRequest) {
       hmac: '',
       access_token: accessToken,
       refresh_token: refreshToken,
+      token_type: 'Bearer',
+      expires_in: 7200,
       expires_at: expiresAt,
       token_error: tokenError,
       installed_at: new Date().toISOString(),
-      status: accessToken ? 'ready' : 'error',
-      app_type: 'oauth',
-      auth_code: code
+      updated_at: new Date().toISOString(),
+      last_refresh_at: new Date().toISOString(),
+      status: (accessToken ? 'ready' : 'error') as 'ready' | 'error',
+      app_type: 'oauth' as const,
+      auth_code: code,
+      client_id: process.env.CAFE24_CLIENT_ID || '',
+      scope: 'mall.read_community,mall.write_community'
     };
 
-    // Admin Firestore에 쇼핑몰 정보 저장
-    const adminDb = getAdminDb();
-    if (adminDb) {
-      await adminDb.collection('shops').doc(mallId).set(shopData);
-      console.log('✅ 쇼핑몰 정보 저장 완료:', mallId);
+    // 서버 메모리에 토큰 저장 (즉시 사용 가능)
+    saveServerShopData(mallId, shopData);
+
+    // Firestore REST API로 영구 저장 시도
+    try {
+      const restSaved = await saveShopDataViaRest(mallId, shopData);
+      if (restSaved) {
+        console.log('✅ Firestore REST API로 쇼핑몰 정보 저장 완료:', mallId);
+      } else {
+        console.warn('⚠️ Firestore REST API 저장 실패, Client SDK 시도');
+        
+        // REST API 실패 시 Client SDK 시도
+        const { db } = await import('@/lib/firebase');
+        if (db) {
+          const { doc, setDoc } = await import('firebase/firestore');
+          const shopRef = doc(db, 'shops', mallId);
+          await setDoc(shopRef, shopData);
+          console.log('✅ Firestore Client SDK로 쇼핑몰 정보 저장 완료:', mallId);
+        }
+      }
+    } catch (saveError) {
+      console.warn('⚠️ 모든 Firestore 저장 방식 실패:', saveError);
+      // 저장 실패해도 서버 메모리에는 저장되었으므로 계속 진행
     }
 
     // 성공 페이지로 리다이렉트
@@ -158,7 +197,15 @@ export async function GET(request: NextRequest) {
     redirectUrl.searchParams.set('user_name', 'OAuth 사용자');
     redirectUrl.searchParams.set('ready', accessToken ? 'true' : 'false');
     redirectUrl.searchParams.set('app_type', 'oauth');
-    if (tokenError) {
+    
+    // 토큰 정보 추가 (토큰 상태 확인에 사용)
+    if (accessToken && expiresAt) {
+      redirectUrl.searchParams.set('access_token', accessToken);
+      redirectUrl.searchParams.set('expires_at', expiresAt);
+    }
+    
+    // 토큰 발급 실패 시에만 오류 메시지 포함
+    if (tokenError && !accessToken) {
       redirectUrl.searchParams.set('error', tokenError);
     }
     

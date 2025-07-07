@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createCafe24Client } from '@/lib/cafe24Client';
 import { getShopData, checkTokenStatus } from '@/lib/tokenStore';
+import { getServerShopData, checkServerTokenStatus } from '@/lib/serverTokenStore';
+import { getShopDataViaRest } from '@/lib/firestoreRest';
 
 /**
  * 안전한 날짜 포맷팅 함수
@@ -27,12 +29,14 @@ function safeFormatDate(timestamp: number | null | undefined): string | null {
 
 /**
  * 토큰 상태 확인 API
- * GET /api/token/status?mall_id=xxx
+ * GET /api/token/status?mall_id=xxx&access_token=xxx&expires_at=xxx
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const mall_id = searchParams.get('mall_id');
+    const access_token = searchParams.get('access_token');
+    const expires_at = searchParams.get('expires_at');
 
     if (!mall_id) {
       return NextResponse.json(
@@ -44,20 +48,127 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 쇼핑몰 정보 확인
-    const shopData = await getShopData(mall_id);
-    if (!shopData) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: '쇼핑몰 정보를 찾을 수 없습니다.' 
-        },
-        { status: 404 }
-      );
+    console.log('🔍 토큰 상태 확인 요청:', { mall_id, has_access_token: !!access_token, expires_at });
+
+    // URL 파라미터로 토큰 정보가 전달된 경우 직접 사용
+    if (access_token && expires_at) {
+      console.log('📋 URL 파라미터로 토큰 정보 전달됨');
+      
+      let expiresAtTimestamp: number;
+      try {
+        expiresAtTimestamp = new Date(expires_at).getTime();
+        if (isNaN(expiresAtTimestamp)) {
+          throw new Error('Invalid expires_at format');
+        }
+      } catch (error) {
+        console.warn('만료 시간 파싱 오류:', error);
+        expiresAtTimestamp = Date.now() + (7200 * 1000); // 기본 2시간 후
+      }
+
+      const now = Date.now();
+      const minutesLeft = Math.floor((expiresAtTimestamp - now) / (1000 * 60));
+      const isExpired = now >= expiresAtTimestamp;
+      const needsRefresh = !isExpired && (expiresAtTimestamp - now) <= (5 * 60 * 1000); // 5분 전
+
+      const tokenStatus = {
+        valid: !isExpired,
+        expiresAt: expiresAtTimestamp,
+        minutesLeft: Math.max(0, minutesLeft),
+        needsRefresh: needsRefresh,
+        error: isExpired ? '토큰이 만료되었습니다.' : undefined
+      };
+
+      // 🔥 중요: URL 파라미터의 토큰 정보를 Firestore에 저장
+      try {
+        const { saveShopDataViaRest } = await import('@/lib/firestoreRest');
+        const shopDataToSave = {
+          mall_id: mall_id,
+          user_id: '',
+          user_name: '',
+          user_type: '',
+          timestamp: '',
+          hmac: '',
+          access_token: access_token,
+          refresh_token: '', // URL 파라미터에는 refresh_token이 없음
+          token_type: 'Bearer',
+          expires_in: 7200,
+          expires_at: new Date(expiresAtTimestamp).toISOString(),
+          token_error: '',
+          installed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          last_refresh_at: new Date().toISOString(),
+          status: isExpired ? 'expired' : 'ready' as 'ready' | 'error' | 'pending' | 'expired',
+          app_type: 'oauth' as 'oauth' | 'private',
+          auth_code: '',
+          client_id: process.env.CAFE24_CLIENT_ID || '',
+          scope: 'mall.read_community,mall.write_community'
+        };
+
+        await saveShopDataViaRest(mall_id, shopDataToSave);
+        console.log('✅ URL 파라미터 토큰 정보를 Firestore에 저장 완료');
+      } catch (saveError) {
+        console.warn('⚠️ Firestore 저장 실패:', saveError);
+      }
+
+      const response = {
+        success: true,
+        mall_id: mall_id,
+        app_type: 'oauth',
+        status: isExpired ? 'expired' : 'ready',
+        token_status: tokenStatus,
+        installed_at: new Date().toISOString(),
+        last_refresh_at: new Date().toISOString(),
+        expires_at_readable: safeFormatDate(expiresAtTimestamp),
+        needs_refresh: needsRefresh,
+        health_check: false,
+        source: 'url_params'
+      };
+
+      // 토큰이 유효한 경우 헬스 체크 수행
+      if (tokenStatus.valid) {
+        try {
+          const client = createCafe24Client(mall_id);
+          response.health_check = await client.healthCheck();
+        } catch (error) {
+          console.warn(`헬스 체크 실패 (${mall_id}):`, error);
+          response.health_check = false;
+        }
+      }
+
+      return NextResponse.json(response);
     }
 
-    // 토큰 상태 확인
-    const tokenStatus = await checkTokenStatus(mall_id);
+    // 쇼핑몰 정보 확인 (서버 메모리 → REST API → Client SDK 순서)
+    let shopData = getServerShopData(mall_id);
+    if (!shopData) {
+      console.log('서버 메모리에서 찾을 수 없음, Firestore REST API 조회 시도:', mall_id);
+      shopData = await getShopDataViaRest(mall_id);
+    }
+    if (!shopData) {
+      console.log('Firestore REST API에서 찾을 수 없음, Client SDK 조회 시도:', mall_id);
+      shopData = await getShopData(mall_id);
+    }
+    
+    if (!shopData) {
+      console.log('❌ 쇼핑몰 정보를 찾을 수 없음:', mall_id);
+      
+      // 기본 응답 제공 (토큰 정보 없음)
+      return NextResponse.json({
+        success: false,
+        error: '쇼핑몰 정보를 찾을 수 없습니다. OAuth 앱을 다시 설치해주세요.',
+        mall_id: mall_id,
+        suggestion: '메인 페이지에서 "OAuth 앱 설치" 버튼을 클릭하여 다시 설치해주세요.'
+      }, { status: 404 });
+    }
+
+    console.log('✅ 쇼핑몰 정보 조회 성공:', { mall_id, source: shopData ? 'found' : 'not_found' });
+
+    // 토큰 상태 확인 (서버 메모리 우선)
+    let tokenStatus = checkServerTokenStatus(mall_id);
+    if (!tokenStatus.valid && tokenStatus.error === '쇼핑몰 정보를 찾을 수 없습니다.') {
+      console.log('서버 메모리에서 토큰 상태 확인 실패, Firestore 조회 시도:', mall_id);
+      tokenStatus = await checkTokenStatus(mall_id);
+    }
 
     // 추가 정보 포함
     const response = {
@@ -70,7 +181,8 @@ export async function GET(request: NextRequest) {
       last_refresh_at: shopData.last_refresh_at,
       expires_at_readable: safeFormatDate(tokenStatus.expiresAt),
       needs_refresh: tokenStatus.needsRefresh || false,
-      health_check: false // 기본값
+      health_check: false,
+      source: 'database'
     };
 
     // 토큰이 유효한 경우 헬스 체크 수행

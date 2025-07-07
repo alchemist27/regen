@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 function AuthSuccessContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [mallId, setMallId] = useState('');
   const [userName, setUserName] = useState('');
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState('');
+  const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
     const mallIdParam = searchParams.get('mall_id');
@@ -22,6 +24,19 @@ function AuthSuccessContent() {
     if (readyParam === 'true') setIsReady(true);
     if (errorParam) setError(decodeURIComponent(errorParam));
   }, [searchParams]);
+
+  // 성공 시 자동 리다이렉트
+  useEffect(() => {
+    if (isReady && countdown > 0) {
+      const timer = setInterval(() => {
+        setCountdown(prev => prev - 1);
+      }, 1000);
+
+      return () => clearInterval(timer);
+    } else if (isReady && countdown === 0) {
+      router.push('/dashboard');
+    }
+  }, [isReady, countdown, router]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-100 flex items-center justify-center px-4">
@@ -70,19 +85,38 @@ function AuthSuccessContent() {
               </div>
             </div>
 
+            {/* 자동 리다이렉트 카운트다운 */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+              <p className="text-sm text-blue-800 mb-2">
+                {countdown > 0 ? (
+                  <>
+                    <strong>{countdown}초</strong> 후 대시보드로 자동 이동합니다.
+                  </>
+                ) : (
+                  '대시보드로 이동 중...'
+                )}
+              </p>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-1000"
+                  style={{ width: `${((5 - countdown) / 5) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <Link 
                 href="/dashboard"
                 className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors text-center"
               >
-                대시보드로 이동
+                지금 대시보드로 이동
               </Link>
-              <Link 
-                href="/test-cafe24"
-                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors text-center"
+              <button
+                onClick={() => setCountdown(0)}
+                className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors"
               >
-                API 테스트
-              </Link>
+                건너뛰기
+              </button>
             </div>
           </div>
         ) : (

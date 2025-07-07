@@ -1,12 +1,77 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 function HomeContent() {
-  // OAuth 콜백은 직접 /api/auth/cafe24/callback으로 처리됨
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [authStatus, setAuthStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [authMessage, setAuthMessage] = useState('');
+  const [mallId, setMallId] = useState('');
+  const [userName, setUserName] = useState('');
 
-  const handleCafe24Login = () => {
-    // 카페24 OAuth 인증 시작
+  useEffect(() => {
+    // URL 파라미터에서 카페24 앱 설치 정보 확인
+    const mallIdParam = searchParams.get('mall_id');
+    const userIdParam = searchParams.get('user_id');
+    const userNameParam = searchParams.get('user_name');
+    const userTypeParam = searchParams.get('user_type');
+    const timestampParam = searchParams.get('timestamp');
+    const hmacParam = searchParams.get('hmac');
+
+    if (mallIdParam && userIdParam) {
+      // 카페24 앱 설치 파라미터가 있는 경우 자동 인증 처리
+      setMallId(mallIdParam);
+      setUserName(userNameParam ? decodeURIComponent(userNameParam) : '');
+      handleDirectAuth(mallIdParam, userIdParam, userNameParam, userTypeParam, timestampParam, hmacParam);
+    }
+  }, [searchParams]);
+
+  const handleDirectAuth = async (
+    mallId: string,
+    userId: string,
+    userName?: string | null,
+    userType?: string | null,
+    timestamp?: string | null,
+    hmac?: string | null
+  ) => {
+    setAuthStatus('processing');
+    setAuthMessage('카페24 앱 인증을 처리하고 있습니다...');
+
+    try {
+      // 카페24 OAuth 인증 시작
+      const clientId = process.env.NEXT_PUBLIC_CAFE24_CLIENT_ID || 'yXNidsOEMldlI2x6QwY20A';
+      const redirectUri = `${window.location.origin}/api/auth/cafe24/callback`;
+      const scope = 'mall.read_community,mall.write_community';
+      
+      // 카페24 OAuth 인증 페이지로 리다이렉트 (공식 문서 형식)
+      const authUrl = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?` +
+        `response_type=code&` +
+        `client_id=${clientId}&` +
+        `state=${mallId}&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `scope=${encodeURIComponent(scope)}`;
+      
+      console.log('OAuth 인증 URL:', authUrl);
+      
+      // 상태 업데이트
+      setAuthMessage('카페24 OAuth 인증 페이지로 이동합니다...');
+      
+      // 짧은 지연 후 리다이렉트
+      setTimeout(() => {
+        window.location.href = authUrl;
+      }, 1000);
+
+    } catch (error) {
+      console.error('인증 처리 오류:', error);
+      setAuthStatus('error');
+      setAuthMessage('인증 처리 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleManualAuth = () => {
+    // 수동 OAuth 인증 시작
     const defaultMallId = process.env.NEXT_PUBLIC_DEFAULT_MALL_ID || 'cosmos2772';
     const clientId = process.env.NEXT_PUBLIC_CAFE24_CLIENT_ID || 'yXNidsOEMldlI2x6QwY20A';
     const redirectUri = `${window.location.origin}/api/auth/cafe24/callback`;
@@ -24,8 +89,6 @@ function HomeContent() {
     window.location.href = authUrl;
   };
 
-
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-16">
@@ -40,40 +103,57 @@ function HomeContent() {
             카페24 게시판의 문의글을 분석하여 적절한 답변을 생성하고, 관리자가 검토 후 등록할 수 있습니다.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-            <button
-              onClick={handleCafe24Login}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
-            >
-              카페24 앱 설치
-            </button>
-            <a
-              href="/dashboard"
-              className="bg-white hover:bg-gray-50 text-gray-900 font-semibold py-3 px-8 rounded-lg border-2 border-gray-200 transition-colors duration-200 shadow-lg hover:shadow-xl"
-            >
-              대시보드 보기
-            </a>
-          </div>
+          {/* 인증 상태 표시 */}
+          {authStatus === 'processing' && (
+            <div className="mb-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-center mb-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+              <h3 className="text-lg font-semibold text-blue-900 mb-2">🔄 인증 처리 중</h3>
+              <p className="text-sm text-blue-800">{authMessage}</p>
+              {mallId && (
+                <div className="mt-4 text-xs text-blue-700 bg-blue-100 p-3 rounded">
+                  <p><strong>쇼핑몰 ID:</strong> {mallId}</p>
+                  {userName && <p><strong>사용자:</strong> {userName}</p>}
+                </div>
+              )}
+            </div>
+          )}
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <a
-              href="/test-openai"
-              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
-            >
-              OpenAI 테스트
-            </a>
-            <a
-              href="/test-cafe24"
-              className="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
-            >
-              카페24 API 테스트
-            </a>
-          </div>
+          {authStatus === 'error' && (
+            <div className="mb-8 p-6 bg-red-50 rounded-lg border border-red-200">
+              <h3 className="text-lg font-semibold text-red-900 mb-2">❌ 인증 오류</h3>
+              <p className="text-sm text-red-800 mb-4">{authMessage}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
+              >
+                다시 시도
+              </button>
+            </div>
+          )}
+
+          {authStatus === 'idle' && (
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
+              <button
+                onClick={handleManualAuth}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl"
+              >
+                카페24 앱 설치
+              </button>
+              <a
+                href="/dashboard"
+                className="bg-white hover:bg-gray-50 text-gray-900 font-semibold py-3 px-8 rounded-lg border-2 border-gray-200 transition-colors duration-200 shadow-lg hover:shadow-xl"
+              >
+                대시보드 보기
+              </a>
+            </div>
+          )}
 
           <div className="mt-12 p-6 bg-blue-50 rounded-lg border border-blue-200">
             <h3 className="text-lg font-semibold text-blue-900 mb-3">🚀 OAuth 앱 설치 안내</h3>
             <div className="text-sm text-blue-800 space-y-2">
-              <p><strong>설치 방법:</strong> 위의 &quot;카페24 앱 설치&quot; 버튼을 클릭하여 OAuth 인증을 진행하세요</p>
+              <p><strong>설치 방법:</strong> 카페24 앱스토어에서 설치하거나 위의 "카페24 앱 설치" 버튼을 클릭하여 OAuth 인증을 진행하세요</p>
               <p><strong>필요 권한:</strong> 게시판 읽기/쓰기 (mall.read_community, mall.write_community)</p>
               <p><strong>지원 기능:</strong></p>
               <ul className="list-disc list-inside ml-4 space-y-1">
@@ -121,7 +201,11 @@ function HomeContent() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    }>
       <HomeContent />
     </Suspense>
   );
