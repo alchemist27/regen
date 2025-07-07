@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { updateTokenData } from '@/lib/tokenStore';
 import { saveServerShopData } from '@/lib/serverTokenStore';
-import { saveShopDataViaRest } from '@/lib/firestoreRest';
 import { TokenData } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
